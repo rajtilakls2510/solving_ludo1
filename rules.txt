@@ -1,0 +1,41 @@
+Rules of LUDO:
+
+Setup and First Turns:
+1. Choose one of the 4 corners of the board as your home base. Take all 4 pieces that are the same color.
+Put all 4 of the pieces inside of your home base to finish setting up.
+2. Arbitrarily allocate which player takes turn first. Each player gets to roll in turns.
+3. Roll a 6 to move a piece out of your base onto the main track. Pieces in home base aren't considered "in the game"
+until they move onto the squares of the main track after rolling a 6. If 1-5 is received when all pieces
+are in the same base, then the player's turn ends without making a move.
+4. After anytime a 6 is rolled, a bonus roll is earned. If three 6s are rolled in a row, the turn automatically ends.
+5. Once a piece is moved after rolling any number besides a 6, the player's turn is ended.
+
+Gameplay:
+1. At the start of each turn, the player rolls the die. If there are multiple pieces in play in the board,
+one of them should be chosen to move during the turn. Anytime a 6 is rolled, the player has the option to either
+move a piece out of his home base onto the main track or or move a different piece around the board.
+2.If the dice roll makes the player's piece land exactly in the same space as another player's piece, their
+piece is taken off the board and placed in their home base to set them back. The player get's another die roll and follow step1.
+Star marked space is a safe space and capturing is not allowed here.
+3. If you land on the same square as another one of your pieces, place them next to or on top of each other to create
+the block. The other players cannot pass the square with a block without getting on top of it. But you can still move 
+them with your pieces to get ahead on the board. 
+	- On a future turn, you are allowed to move the whole block if you roll an even number. 
+	- If you move the block as a whole, you are not allowed to break the block until you reach a star. If you don't have an even roll 
+	and no other pieces to move, your turn is over.
+	- The opponent player can capture both the pieces of your block if he lands on the same space using his block of two pieces with even die rolls.
+	- If you have three or more pieces in the exact same space, another player can capture the top piece if the die roll allows it.
+
+Winning:
+1. Make 1 complete lap clockwise around the board's maintrack until you reach the bottom square of the home column. 
+Rather than continuing around the outer track, now your piece can move into the home column toward the finishing square in the middle. 
+	- Only pieces that match the color if the home column are allowed to move into them	
+	- Once you move a piece into the home column, it can't be captured by any other players.
+	- Making more than 1 lap by a piece is prohibited.
+2. Once you move a piece into your home column, you cannot jump over your own spaces. If you roll the
+exact number of spaces you need to reach the finishing square in the middle of the board or less, then you are alllowed
+to move your piece. If no other pieces are left, your turn is over.
+3. Move all 4 of your pieces to the finishing square. Once all player gets all 4 of their pieces off the board, their game is over.
+4. A maximum of 50 turns are allowed per player, following which, the game is over for that player and all his pieces are taken off the board.
+5. Each player get's points by moving their pieces. 1 space moves = 1 point. When pawns reach finishing square, scores are multiplied -
+	2x, 3x, 4x and 5x for the 1st, 2nd, 3rd and 4th pawn respectively.
