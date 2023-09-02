@@ -28,6 +28,7 @@ const Pos = ({ classes, container_colour, id, boardState }) => {
       {extractPawnsAtPos().map((pawn_id, index) => (
         <Pawn number={index + 1} id={pawn_id} boardState={boardState} />
       ))}
+      <small>{id}</small>
     </div>
   );
 };

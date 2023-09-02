@@ -5,6 +5,13 @@ import Base from "./Base";
 
 const Board = () => {
   const [boardState, setBoardState] = useState({
+    conifg: {
+      players: [{ name: "Player 1" }, { name: "Player 2" }],
+      player_colour: [
+        { "Player 1": ["red", "yellow"] },
+        { "Player 2": ["green", "blue"] },
+      ],
+    },
     pawns: {
       R1: "red",
       R2: "red",
@@ -24,22 +31,29 @@ const Board = () => {
       B4: "blue",
     },
     positions: [
-      { pawn_id: "R1", pos_id: "RB1" },
-      { pawn_id: "R2", pos_id: "P23" },
-      { pawn_id: "R3", pos_id: "P4" },
-      { pawn_id: "R4", pos_id: "RH3" },
-      { pawn_id: "G1", pos_id: "GB1" },
-      { pawn_id: "G2", pos_id: "P17" },
-      { pawn_id: "G3", pos_id: "P39" },
-      { pawn_id: "G4", pos_id: "P41" },
-      { pawn_id: "Y1", pos_id: "YB1" },
-      { pawn_id: "Y2", pos_id: "P28" },
-      { pawn_id: "Y3", pos_id: "P48" },
-      { pawn_id: "Y4", pos_id: "YH3" },
-      { pawn_id: "B1", pos_id: "BB1" },
-      { pawn_id: "B2", pos_id: "P39" },
-      { pawn_id: "B3", pos_id: "BH6" },
-      { pawn_id: "B4", pos_id: "BH2" },
+      { pawn_id: "R1", pos_id: "RB1", blocked: false },
+      { pawn_id: "R2", pos_id: "P23", blocked: true },
+      { pawn_id: "R3", pos_id: "P4", blocked: true },
+      { pawn_id: "R4", pos_id: "P4", blocked: true },
+      { pawn_id: "G1", pos_id: "GB1", blocked: false },
+      { pawn_id: "G2", pos_id: "P24", blocked: false },
+      { pawn_id: "G3", pos_id: "P35", blocked: false },
+      { pawn_id: "G4", pos_id: "P41", blocked: false },
+      { pawn_id: "Y1", pos_id: "YB1", blocked: false },
+      { pawn_id: "Y2", pos_id: "P28", blocked: false },
+      { pawn_id: "Y3", pos_id: "P23", blocked: true },
+      { pawn_id: "Y4", pos_id: "YH3", blocked: false },
+      { pawn_id: "B1", pos_id: "BB1", blocked: false },
+      { pawn_id: "B2", pos_id: "P5", blocked: true },
+      { pawn_id: "B3", pos_id: "P5", blocked: true },
+      { pawn_id: "B4", pos_id: "BH2", blocked: false },
+    ],
+    current_player: 0,
+    dice_roll: [6, 6, 2],
+    blocks: [
+      { pawn_ids: ["R3", "R4"], rigid: true },
+      { pawn_ids: ["R2", "Y3"], rigid: false },
+      { pawn_ids: ["B2", "B3"], rigid: true },
     ],
   });
 
