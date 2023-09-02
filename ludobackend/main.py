@@ -1,12 +1,14 @@
 from copy import deepcopy
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from random import randint
 import pprint
 
 app = Flask(__name__)
 cors = CORS(app)
 
 ludo = None
+
 
 class Player:
     def __init__(self, name):
@@ -66,7 +68,8 @@ class GameConfig:
                               in player}
 
     def get_dict(self):
-        return {"players": [player.get_dict() for player in self.players], "player_colour": [{self.players[i].name: self.player_colour[i]} for i in range(len(self.players))]}
+        return {"players": [player.get_dict() for player in self.players],
+                "player_colour": [{self.players[i].name: self.player_colour[i]} for i in range(len(self.players))]}
 
 
 class Ludo:
@@ -102,8 +105,14 @@ class Ludo:
             ...,
             "all_blocks": [] (all blocks that are currently present on the board)
         }"""
+        roll = []
+        for i in range(3):
+            rnd = randint(1, 6)
+            roll.append(rnd)
+            if rnd != 6:
+                break
 
-        self.state = {"current_player": 0, "dice_roll": []}
+        self.state = {"current_player": 0, "dice_roll": roll}
 
         for i, player in enumerate(config.players):
             pawns = {}
@@ -115,20 +124,42 @@ class Ludo:
 
         # print(self.state)
         self.last_block_id = 0
+        self.all_current_moves = self.all_possible_moves(self.state)
 
     def get_colour_from_id(self, id):
         if id[0] == "R":
-            return ludo.RED
+            return Ludo.RED
         elif id[0] == "G":
-            return ludo.GREEN
+            return Ludo.GREEN
         elif id[0] == "Y":
-            return ludo.YELLOW
+            return Ludo.YELLOW
         else:
-            return ludo.BLUE
+            return Ludo.BLUE
 
-    def turn(self):
-        # TODO: Whenever a pawn lands on a pawn of the same player, make it a block by default except the home start positions and finale position
-        pass
+    def turn(self, move):
+        if(self.state["dice_roll"] != [6,6,6]):
+            # Take the move and create next state
+            state = self.state
+            for m, r in zip(move, state["dice_roll"]):
+                state, captured = self.generate_next_state(state, r, m[1], m[0])
+            self.state = state
+
+        # Change the turn
+        self.state["current_player"] = (self.state["current_player"] + 1) % len(ludo.config.players)
+        print(self.state)
+        # cache all possible next moves
+        self.all_current_moves = self.all_possible_moves(self.state)
+
+        # Generate new dice roll
+        roll = []
+        for i in range(3):
+            rnd = randint(1, 6)
+            roll.append(rnd)
+            if rnd != 6:
+                break
+
+        self.state["dice_roll"] = roll
+        print("roll", roll)
 
     def get_new_block_id(self):
         self.last_block_id += 1
@@ -290,7 +321,7 @@ class Ludo:
                 for pawn_id, pos in state[other_player.name]["single_pawn_pos"].items():
                     if destination == pos and destination not in self.stars:
                         state[other_player.name]["single_pawn_pos"][pawn_id] = \
-                            self.bases[self.get_colour_from_id(pawn_id)][int(pawn_id[1:])]
+                            self.bases[self.get_colour_from_id(pawn_id)][int(pawn_id[1:])-1]
                         captured = True
                         break
 
@@ -336,7 +367,7 @@ class Ludo:
                         state[other_player.name]["block_pawn_pos"].pop(b_id)
                         for p in b.pawns:
                             state[other_player.name]["single_pawn_pos"][p.id] = \
-                                self.bases[self.get_colour_from_id(p.id)][int(p.id[1:])]
+                                self.bases[self.get_colour_from_id(p.id)][int(p.id[1:])-1]
                         captured = True
                         break
 
@@ -353,7 +384,7 @@ class Ludo:
     def generate_and_validate_moves(self, state, roll, selected_pawns):
 
         valid_moves = []
-        if roll:
+        if len(roll)>0:
             # find out all possible movable pawns
             next_possible_pawns = self.find_next_possible_pawns(state)
             # Validate whether moving that pawn is possible or not for roll[0]
@@ -382,14 +413,14 @@ class Ludo:
         for roll in possible_rolls:
             validated_moves = self.generate_and_validate_moves(state, roll, [])
             possible_moves.append({"roll": roll, "moves": validated_moves})
-        print(possible_moves)
+        # print(possible_moves)
         print([[rm["roll"], len(rm["moves"])] for rm in possible_moves])
         return possible_moves
 
+
 # ============= APIs =======================
 
-@app.route("/state", methods=["GET"])
-def get_state():
+def get_state_jsonable_dict():
     new_state = {"config": ludo.config.get_dict()}
     pawns = {}
     positions = []
@@ -407,39 +438,53 @@ def get_state():
     new_state["current_player"] = ludo.state["current_player"]
     new_state["dice_roll"] = ludo.state["dice_roll"]
     new_state["blocks"] = []
+    new_state["moves"] = []
     for block in ludo.state["all_blocks"]:
         new_state["blocks"].append({"pawn_ids": [pawn.id for pawn in block.pawns], "rigid": block.rigid})
-    for roll in ludo.all_possible_moves(ludo.state):
+    for roll in ludo.all_current_moves:
         if roll["roll"] == ludo.state["dice_roll"]:
             new_state["moves"] = roll["moves"]
+    return new_state
+
+@app.route("/state", methods=["GET"])
+def get_state():
+    new_state = get_state_jsonable_dict()
     return jsonify(new_state), 200
 
 
-# @app.route("/take_move", methods=["POST"])
-# def take_move():
+@app.route("/take_move", methods=["POST"])
+def take_move():
+    move = request.get_json()
+    print(move)
+    ludo.turn(move)
+    new_state = get_state_jsonable_dict()
+    return jsonify(new_state), 200
 
 
 if __name__ == "__main__":
     ludo = Ludo(GameConfig([[Ludo.RED, Ludo.YELLOW], [Ludo.BLUE, Ludo.GREEN]]))
 
-    ludo.state = {"current_player": 1, "dice_roll": [6,6,2],
-             ludo.config.players[0].name: {"single_pawn_pos": {"R1": "RB1", "Y1": "YB1", "Y2": "P28", "Y4": "P28"},
-                                           "block_pawn_pos": {"BL1": "P4", "BL2": "P23"}},
-             ludo.config.players[1].name: {
-                 "single_pawn_pos": {"G1": "GB1", "G2": "P24", "G3": "P35", "G4": "P41", "B1": "BB1",
-                                     "B4": "BH2"},
-                 "block_pawn_pos": {"BL3": "P5"}},
-             "all_blocks": [
-                 PawnBlock(
-                     [pawn for id in ["R3", "R4"] for pawn in ludo.pawns[ludo.get_colour_from_id(id)] if pawn.id == id],
-                     "BL1", rigid=True),
-                 PawnBlock(
-                     [pawn for id in ["R2", "Y3"] for pawn in ludo.pawns[ludo.get_colour_from_id(id)] if pawn.id == id],
-                     "BL2"),
-                 PawnBlock(
-                     [pawn for id in ["B2", "B3"] for pawn in ludo.pawns[ludo.get_colour_from_id(id)] if pawn.id == id],
-                     "BL3", rigid=True),
-             ],
-             }
-    ludo.all_possible_moves(ludo.state)
+    # ludo.state = {"current_player": 1, "dice_roll": [6, 6, 2],
+    #               ludo.config.players[0].name: {"single_pawn_pos": {"R1": "RB1", "Y1": "YB1", "Y2": "P28", "Y4": "P28"},
+    #                                             "block_pawn_pos": {"BL1": "P4", "BL2": "P23"}},
+    #               ludo.config.players[1].name: {
+    #                   "single_pawn_pos": {"G1": "GB1", "G2": "P24", "G3": "P35", "G4": "P41", "B1": "BB1",
+    #                                       "B4": "BH2"},
+    #                   "block_pawn_pos": {"BL3": "P5"}},
+    #               "all_blocks": [
+    #                   PawnBlock(
+    #                       [pawn for id in ["R3", "R4"] for pawn in ludo.pawns[ludo.get_colour_from_id(id)] if
+    #                        pawn.id == id],
+    #                       "BL1", rigid=True),
+    #                   PawnBlock(
+    #                       [pawn for id in ["R2", "Y3"] for pawn in ludo.pawns[ludo.get_colour_from_id(id)] if
+    #                        pawn.id == id],
+    #                       "BL2"),
+    #                   PawnBlock(
+    #                       [pawn for id in ["B2", "B3"] for pawn in ludo.pawns[ludo.get_colour_from_id(id)] if
+    #                        pawn.id == id],
+    #                       "BL3", rigid=True),
+    #               ],
+    #               }
+    # ludo.all_current_moves = ludo.all_possible_moves(ludo.state)
     app.run(host="0.0.0.0", port=5000)

@@ -6,8 +6,13 @@ const getState = () => {
   return axios.get(API_URL + "/state");
 };
 
+const postMove = (data) => {
+  return axios.post(API_URL + "/take_move", data);
+};
+
 const apiFunctions = {
   getState,
+  postMove,
 };
 
 export default apiFunctions;

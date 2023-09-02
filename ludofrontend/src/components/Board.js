@@ -75,6 +75,7 @@ const Board = () => {
         setAvailableMoves([...res.data.moves]);
       })
       .catch((error) => {
+        console.log(error);
         console.log("State fetch error");
       });
   }, []);
@@ -126,12 +127,41 @@ const Board = () => {
 
   useEffect(() => {
     let move_completed = true;
-    let initial = availableMoves[0];
-    for (let i = 1; i < availableMoves.length; i++)
-      move_completed &= checkSame(initial, availableMoves[i]);
+    if (JSON.stringify(boardState.dice_roll) !== JSON.stringify([6, 6, 6])) {
+      let initial = availableMoves[0];
+      for (let i = 1; i < availableMoves.length; i++)
+        move_completed &= checkSame(initial, availableMoves[i]);
 
-    if (move_completed && availableMoves.length > 0) {
-      console.log("Send move APi call");
+      if (move_completed && availableMoves.length > 0) {
+        Api.postMove(availableMoves[0])
+          .then((res) => {
+            setBoardState({
+              ...res.data,
+              current_move: [],
+              selected_pawns: [],
+              available_pos: [],
+            });
+            setAvailableMoves([...res.data.moves]);
+          })
+          .catch((error) => {
+            console.log("State fetch error");
+          });
+      }
+    } else {
+      console.log("[6,6,6] roll found, skipping turn");
+      Api.postMove([])
+        .then((res) => {
+          setBoardState({
+            ...res.data,
+            current_move: [],
+            selected_pawns: [],
+            available_pos: [],
+          });
+          setAvailableMoves([...res.data.moves]);
+        })
+        .catch((error) => {
+          console.log("State fetch error");
+        });
     }
   }, [availableMoves]);
 
