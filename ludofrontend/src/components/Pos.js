@@ -2,7 +2,14 @@ import React from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faStar, faTrophy } from "@fortawesome/free-solid-svg-icons";
 import Pawn from "./Pawn";
-const Pos = ({ classes, container_colour, id, boardState }) => {
+const Pos = ({
+  classes,
+  container_colour,
+  id,
+  boardState,
+  handlePawnClick,
+  handlePosClick,
+}) => {
   const extractPawnsAtPos = () => {
     let pawns = [];
     for (let i = 0; i < boardState.positions.length; i++) {
@@ -12,7 +19,12 @@ const Pos = ({ classes, container_colour, id, boardState }) => {
     return pawns;
   };
   return (
-    <div className={`pos-container ${classes} ${container_colour}-container`}>
+    <div
+      className={`pos-container ${classes} ${container_colour}-container ${
+        boardState.available_pos.includes(id) ? "pos-container-selectable" : ""
+      }`}
+      onClick={() => handlePosClick(id)}
+    >
       {["P2", "P10", "P15", "P23", "P28", "P36", "P41", "P49"].indexOf(id) >
       -1 ? (
         <div className="star">
@@ -26,7 +38,13 @@ const Pos = ({ classes, container_colour, id, boardState }) => {
       ) : null}
 
       {extractPawnsAtPos().map((pawn_id, index) => (
-        <Pawn number={index + 1} id={pawn_id} boardState={boardState} />
+        <Pawn
+          key={pawn_id}
+          number={index + 1}
+          id={pawn_id}
+          boardState={boardState}
+          handlePawnClick={handlePawnClick}
+        />
       ))}
       <small>{id}</small>
     </div>

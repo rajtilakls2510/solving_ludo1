@@ -1,5 +1,12 @@
 from copy import deepcopy
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+import pprint
 
+app = Flask(__name__)
+cors = CORS(app)
+
+ludo = None
 
 class Player:
     def __init__(self, name):
@@ -10,6 +17,9 @@ class Player:
 
     def __repr__(self):
         return self.name
+
+    def get_dict(self):
+        return {"name": self.name}
 
 
 class Pawn:
@@ -54,6 +64,9 @@ class GameConfig:
         self.players = [Player(f"Player {i + 1}") for i in range(len(self.player_colour))]
         self.colour_player = {colour: self.players[i] for i, player in enumerate(self.player_colour) for colour
                               in player}
+
+    def get_dict(self):
+        return {"players": [player.get_dict() for player in self.players], "player_colour": [{self.players[i].name: self.player_colour[i]} for i in range(len(self.players))]}
 
 
 class Ludo:
@@ -371,27 +384,62 @@ class Ludo:
             possible_moves.append({"roll": roll, "moves": validated_moves})
         print(possible_moves)
         print([[rm["roll"], len(rm["moves"])] for rm in possible_moves])
+        return possible_moves
+
+# ============= APIs =======================
+
+@app.route("/state", methods=["GET"])
+def get_state():
+    new_state = {"config": ludo.config.get_dict()}
+    pawns = {}
+    positions = []
+    for player in ludo.config.players:
+        # pawns.update(ludo.state[player.name]["single_pawn_pos"])
+        for pawn_id, pos in ludo.state[player.name]["single_pawn_pos"].items():
+            pawns[pawn_id] = {"colour": ludo.get_colour_from_id(pawn_id), "blocked": False}
+            positions.append({"pawn_id": pawn_id, "pos_id": pos})
+        for block_id, pos in ludo.state[player.name]["block_pawn_pos"].items():
+            for pawn in ludo.fetch_block_from_id(ludo.state, block_id).pawns:
+                pawns[pawn.id] = {"colour": ludo.get_colour_from_id(pawn.id), "blocked": True}
+                positions.append({"pawn_id": pawn.id, "pos_id": pos})
+    new_state["pawns"] = pawns
+    new_state["positions"] = positions
+    new_state["current_player"] = ludo.state["current_player"]
+    new_state["dice_roll"] = ludo.state["dice_roll"]
+    new_state["blocks"] = []
+    for block in ludo.state["all_blocks"]:
+        new_state["blocks"].append({"pawn_ids": [pawn.id for pawn in block.pawns], "rigid": block.rigid})
+    for roll in ludo.all_possible_moves(ludo.state):
+        if roll["roll"] == ludo.state["dice_roll"]:
+            new_state["moves"] = roll["moves"]
+    return jsonify(new_state), 200
 
 
-ludo = Ludo(GameConfig([(Ludo.RED, Ludo.YELLOW), (Ludo.BLUE, Ludo.GREEN)]))
+# @app.route("/take_move", methods=["POST"])
+# def take_move():
 
-state = {"current_player": 0, "dice_roll": [],
-         ludo.config.players[0].name: {"single_pawn_pos": {"R1": "RB1", "Y1": "YB1", "Y2": "P28", "Y4": "YH3"},
-                                       "block_pawn_pos": {"BL1": "P4", "BL2": "P23"}},
-         ludo.config.players[1].name: {
-             "single_pawn_pos": {"G1": "GB1", "G2": "P24", "G3": "P35", "G4": "P41", "B1": "BB1", "B3": "P5",
-                                 "B4": "BH2"},
-             "block_pawn_pos": {"BL3": "P5"}},
-         "all_blocks": [
-             PawnBlock(
-                 [pawn for id in ["R3", "R4"] for pawn in ludo.pawns[ludo.get_colour_from_id(id)] if pawn.id == id],
-                 "BL1", rigid=True),
-             PawnBlock(
-                 [pawn for id in ["R2", "Y3"] for pawn in ludo.pawns[ludo.get_colour_from_id(id)] if pawn.id == id],
-                 "BL2"),
-             PawnBlock(
-                 [pawn for id in ["B2", "B3"] for pawn in ludo.pawns[ludo.get_colour_from_id(id)] if pawn.id == id],
-                 "BL3", rigid=True),
-         ],
-         }
-ludo.all_possible_moves(state)
+
+if __name__ == "__main__":
+    ludo = Ludo(GameConfig([[Ludo.RED, Ludo.YELLOW], [Ludo.BLUE, Ludo.GREEN]]))
+
+    ludo.state = {"current_player": 1, "dice_roll": [6,6,2],
+             ludo.config.players[0].name: {"single_pawn_pos": {"R1": "RB1", "Y1": "YB1", "Y2": "P28", "Y4": "P28"},
+                                           "block_pawn_pos": {"BL1": "P4", "BL2": "P23"}},
+             ludo.config.players[1].name: {
+                 "single_pawn_pos": {"G1": "GB1", "G2": "P24", "G3": "P35", "G4": "P41", "B1": "BB1",
+                                     "B4": "BH2"},
+                 "block_pawn_pos": {"BL3": "P5"}},
+             "all_blocks": [
+                 PawnBlock(
+                     [pawn for id in ["R3", "R4"] for pawn in ludo.pawns[ludo.get_colour_from_id(id)] if pawn.id == id],
+                     "BL1", rigid=True),
+                 PawnBlock(
+                     [pawn for id in ["R2", "Y3"] for pawn in ludo.pawns[ludo.get_colour_from_id(id)] if pawn.id == id],
+                     "BL2"),
+                 PawnBlock(
+                     [pawn for id in ["B2", "B3"] for pawn in ludo.pawns[ludo.get_colour_from_id(id)] if pawn.id == id],
+                     "BL3", rigid=True),
+             ],
+             }
+    ludo.all_possible_moves(ludo.state)
+    app.run(host="0.0.0.0", port=5000)

@@ -17,6 +17,7 @@ html {
 
 :root {
   /* colors */
+  --torquise-color: rgb(64, 224, 208);
   --text-color: rgb(209, 207, 207);
   --text-dark-color: rgb(37, 36, 36);
   --unimportant-text-color: rgb(114, 114, 114);
@@ -52,8 +53,8 @@ html {
   --btn-green: linear-gradient(to bottom, rgb(94, 173, 94), rgb(4, 156, 4));
   --btn-yellow: linear-gradient(
     to bottom,
-    rgb(255, 251, 5),
-    rgb(223, 208, 6)
+    rgb(236, 221, 13),
+    rgb(181, 175, 58)
   );
   --btn-normal-dark: linear-gradient(
     to bottom,
@@ -81,9 +82,9 @@ html {
   );
   --btn-yellow-dark: linear-gradient(
     to bottom,
-    rgb(215, 215, 20),
+    rgb(183, 174, 1)
     10%,
-    rgb(195, 189, 7)
+    rgb(144, 137, 0)
   );
 
   /* notification colors */
@@ -232,6 +233,12 @@ img {
   border: none;
 }
 
+.btn-selected {
+  background: var(--btn-normal-dark);
+  color: var(--text-color);
+  border: none;
+}
+
 .btn:disabled {
   color: var(--text-dark-color);
   background: var(--unimportant-text-color);
@@ -253,6 +260,9 @@ img {
 .btn-blue:active {
   background: var(--btn-blue-dark);
 }
+.btn-blue-selected {
+  background: var(--btn-blue-dark);
+}
 
 .btn-red {
   color: var(--text-color);
@@ -265,6 +275,9 @@ img {
 }
 
 .btn-red:active {
+  background: var(--btn-red-dark);
+}
+.btn-red-selected {
   background: var(--btn-red-dark);
 }
 .btn-yellow {
@@ -280,6 +293,9 @@ img {
 .btn-yellow:active {
   background: var(--btn-yellow-dark);
 }
+.btn-yellow-selected {
+  background: var(--btn-yellow-dark);
+}
 .btn-green {
   color: var(--text-color);
   background: var(--btn-green);
@@ -291,6 +307,9 @@ img {
 }
 
 .btn-green:active {
+  background: var(--btn-green-dark);
+}
+.btn-green-selected {
   background: var(--btn-green-dark);
 }
 
@@ -594,7 +613,7 @@ BOARD
 
 .colour-container{
   display: grid;
-  padding: 1.5rem;
+  padding: 2rem;
 }
 
 .red-container{
@@ -646,41 +665,39 @@ flex-direction: column;
 .pos-container{
   width: 100%;
   height: 100%;
-  position: relative
-  
+  position: relative;
+  padding: 0.1rem;
 }
 
 .base-pos-container{
-  width: 2rem;
-  height: 2rem;
-  /* background: white; */
+  width: 50%;
+  height: 50%;
   border-radius: 50%;
 }
 
 .pawn-1{
   padding: 0;
   position: absolute;
-  width: 1.4rem;
-  height: 1.4rem;
+  width: 75%;
+  height: 75%;
   border-radius: 50%;
-  margin: 4px 4px;
   z-index: 1;
 }
 
 .pawn-2{
-  bottom: 0.4rem;
+  bottom: 0.2rem;
   left: 0.2rem;
   z-index: 2;
 }
 
 .pawn-3{
-  bottom: 0.6rem;
-  right: 0.2rem;
+  bottom: 0.4rem;
+  left: 0.4rem;
   z-index: 3;
 }
 
 .board-container .middle-winner{
-  border: 0.08rem solid black;
+  border: 0.1rem solid black;
 }
 
 .board-container .star{
@@ -689,9 +706,16 @@ flex-direction: column;
   position: absolute;
   color: black;
   text-align: center;
-  font-size: medium;
+  font-size: large;
 }
 
+.board-container .pos-container-selectable{
+  background-color: var(--torquise-color);
+  border: 0.12rem solid black;
+}
+.board-container .pos-container-selectable:hover{
+  cursor: pointer;
+}
 
 
 .info-container{
