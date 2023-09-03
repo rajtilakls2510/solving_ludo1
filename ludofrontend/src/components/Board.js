@@ -6,6 +6,7 @@ import Api from "../Api";
 
 const Board = () => {
   const [availableMoves, setAvailableMoves] = useState([]);
+  // const [sendMove, setSendMove] = useState(false);
   const [boardState, setBoardState] = useState({
     config: {
       players: [{ name: "Player 1" }, { name: "Player 2" }],
@@ -50,6 +51,7 @@ const Board = () => {
       { pawn_id: "B3", pos_id: "P5" },
       { pawn_id: "B4", pos_id: "BH2" },
     ],
+    last_move_id: 0,
     current_player: 0,
     dice_roll: [6, 6, 2],
     blocks: [
@@ -63,16 +65,24 @@ const Board = () => {
     available_pos: [],
   });
 
+  const applyBoardState = (data) => {
+    setBoardState({
+      ...data,
+      current_move: [],
+      selected_pawns: [],
+      available_pos: [],
+    });
+    if (JSON.stringify(data.moves) === JSON.stringify([])) {
+      setAvailableMoves([[]]);
+    } else {
+      setAvailableMoves([...data.moves]);
+    }
+  };
+
   useEffect(() => {
     Api.getState()
       .then((res) => {
-        setBoardState({
-          ...res.data,
-          current_move: [],
-          selected_pawns: [],
-          available_pos: [],
-        });
-        setAvailableMoves([...res.data.moves]);
+        applyBoardState(res.data);
       })
       .catch((error) => {
         console.log(error);
@@ -126,44 +136,51 @@ const Board = () => {
   };
 
   useEffect(() => {
-    let move_completed = true;
-    if (JSON.stringify(boardState.dice_roll) !== JSON.stringify([6, 6, 6])) {
+    if (
+      JSON.stringify(availableMoves) !== JSON.stringify([[]]) &&
+      JSON.stringify(availableMoves) !== JSON.stringify([])
+    ) {
+      console.log("nd", availableMoves);
+      let move_completed = true;
       let initial = availableMoves[0];
       for (let i = 1; i < availableMoves.length; i++)
         move_completed &= checkSame(initial, availableMoves[i]);
 
-      if (move_completed && availableMoves.length > 0) {
-        Api.postMove(availableMoves[0])
+      if (move_completed) {
+        Api.postMove({
+          move: availableMoves[0],
+          move_id: boardState.last_move_id + 1,
+        })
           .then((res) => {
-            setBoardState({
-              ...res.data,
-              current_move: [],
-              selected_pawns: [],
-              available_pos: [],
-            });
-            setAvailableMoves([...res.data.moves]);
+            applyBoardState(res.data);
           })
           .catch((error) => {
             console.log("State fetch error");
           });
       }
-    } else {
-      console.log("[6,6,6] roll found, skipping turn");
-      Api.postMove([])
+    } else if (JSON.stringify(availableMoves) === JSON.stringify([[]])) {
+      console.log("no valid move found, skipping turn");
+      console.log("d", availableMoves);
+      Api.postMove({ move: [[]], move_id: boardState.last_move_id + 1 })
         .then((res) => {
-          setBoardState({
-            ...res.data,
-            current_move: [],
-            selected_pawns: [],
-            available_pos: [],
-          });
-          setAvailableMoves([...res.data.moves]);
+          applyBoardState(res.data);
         })
         .catch((error) => {
           console.log("State fetch error");
         });
     }
   }, [availableMoves]);
+
+  // useEffect(() => {
+  //   let move_completed = true;
+  //   if (
+  //     JSON.stringify(availableMoves) !== JSON.stringify([[]]) &&
+  //     JSON.stringify(availableMoves) !== JSON.stringify([])
+  //   ) {
+
+  //     setSendMove(move_completed);
+  //   }
+  // }, [availableMoves]);
 
   useEffect(() => {
     let moves1 = [...availableMoves];

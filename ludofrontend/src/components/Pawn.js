@@ -1,4 +1,5 @@
 import React from "react";
+import { Tooltip } from "react-tooltip";
 
 const Pawn = ({ number, id, boardState, handlePawnClick }) => {
   return (
@@ -9,8 +10,11 @@ const Pawn = ({ number, id, boardState, handlePawnClick }) => {
         boardState.selected_pawns.includes(id) ? "selected" : ""
       }`}
       onClick={() => handlePawnClick(id)}
+      data-tooltip-id="pawn-tooltip"
+      data-tooltip-content={`${id}`}
     >
       <small>{id}</small>
+      <Tooltip id="pawn-tooltip" />
     </button>
   );
 };
