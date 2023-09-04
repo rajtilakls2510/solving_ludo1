@@ -100,8 +100,11 @@ class Ludo:
 
         # Creating initial state
         """ state = {
+            "game_over": False (Has the game ended or not),
             "current_player": 0 (index of player in config object), 
+            "num_more_moves": 0, (How many more moves of the current player is left)
             dice_roll: [] (result of recent dice roll, empty means dice is yet to be rolled),
+            "last_move_id": 0, (What was the last move id: used to accept a new move based on last_move_id)
             "player i": {"single_pawn_pos": {"pawn1": "position", ...}, "block_pawn_pos": {"blocked_pawn1": "position"}},
             ...,
             "all_blocks": [] (all blocks that are currently present on the board)
@@ -113,7 +116,7 @@ class Ludo:
             if rnd != 6:
                 break
 
-        self.state = {"current_player": 0, "num_more_moves": 0, "dice_roll": roll, "last_move_id": 0}
+        self.state = {"game_over":False, "current_player": 0, "num_more_moves": 0, "dice_roll": roll, "last_move_id": 0}
 
         for i, player in enumerate(config.players):
             pawns = {}
@@ -153,22 +156,33 @@ class Ludo:
             # print(self.state["num_more_moves"])
             # Update last move_id
             self.state["last_move_id"] += 1
+
             # Change the turn
             if self.state["num_more_moves"] == 0:
                 self.state["current_player"] = (self.state["current_player"] + 1) % len(ludo.config.players)
-            # cache all possible next moves
-            self.all_current_moves = self.all_possible_moves(self.state)
-            # Generate new dice roll
-            roll = []
-            for i in range(3):
-                rnd = randint(1, 6)
-                roll.append(rnd)
-                if rnd != 6:
-                    break
 
-            self.state["dice_roll"] = roll
-            print(self.state, [{"roll": move["roll"], "moves": len(move["moves"])} for move in self.all_current_moves])
-            print(f"player {self.state['current_player']}, roll {roll}")
+            # Check game over or not by evaluating if all other players have completed
+            game_over = True
+            for colour, player in self.config.colour_player.items():
+                if player != self.config.players[self.state["current_player"]]:
+                    for pawn in self.pawns[colour]:
+                        if self.state[player.name]["single_pawn_pos"][pawn.id] not in self.finale_positions:
+                            game_over = False
+            self.state["game_over"] = game_over
+            if not game_over:
+                # cache all possible next moves
+                self.all_current_moves = self.all_possible_moves(self.state)
+                # Generate new dice roll
+                roll = []
+                for i in range(3):
+                    rnd = randint(1, 6)
+                    roll.append(rnd)
+                    if rnd != 6:
+                        break
+
+                self.state["dice_roll"] = roll
+                print(self.state, [{"roll": move["roll"], "moves": len(move["moves"])} for move in self.all_current_moves])
+                print(f"player {self.state['current_player']}, roll {roll}")
 
     def get_new_block_id(self):
         self.last_block_id += 1
@@ -406,7 +420,7 @@ class Ludo:
                 for p in block.pawns:
                     state[current_player.name]["single_pawn_pos"][p.id] = destination
             # Elif destination is an intermediate star, make the block not rigid
-            elif destination in self.stars[:4]:
+            elif destination in self.stars[4:]:
                 block.rigid = False
             # Else, remove the single pawns of the block because the block will be rigid
             else:
@@ -443,6 +457,19 @@ class Ludo:
                     sp.append([pawn, current_pos, destination_pos])
                     # valid_pawn_selections.append(sp)
                     next_state = self.generate_next_state(state, roll[0], current_pos, pawn)[0]
+
+                    # If all pawns of the player are in finale positions, send back selected pawns
+                    try:
+                        for colour in self.config.player_colour[next_state["current_player"]]:
+                            for pawn in self.pawns[colour]:
+                                if next_state[self.config.players[next_state["current_player"]].name]["single_pawn_pos"][pawn.id] not in self.finale_positions:
+                                    break
+                            else:
+                                return sp
+                    except:
+                        # If any error comes up, it means not all pawns are in finale positions
+                        pass
+
                     for moves in self.generate_and_validate_moves(next_state, roll[1:], sp):
                         valid_moves.append(moves)
             return valid_moves
@@ -478,6 +505,7 @@ def get_state_jsonable_dict():
             for pawn in ludo.fetch_block_from_id(ludo.state, block_id).pawns:
                 pawns[pawn.id] = {"colour": ludo.get_colour_from_id(pawn.id), "blocked": True}
                 positions.append({"pawn_id": pawn.id, "pos_id": pos})
+    new_state["game_over"] = ludo.state["game_over"]
     new_state["pawns"] = pawns
     new_state["positions"] = positions
     new_state["current_player"] = ludo.state["current_player"]
@@ -513,27 +541,17 @@ def take_move():
 if __name__ == "__main__":
     ludo = Ludo(GameConfig([[Ludo.RED, Ludo.YELLOW], [Ludo.BLUE, Ludo.GREEN]]))
 
-    ludo.state = {"current_player": 1, "dice_roll": [4], "num_more_moves": 0, "last_move_id": 0,
+    ludo.state = {"game_over":False,"current_player": 0, "dice_roll": [6,1], "num_more_moves": 0, "last_move_id": 0,
                   ludo.config.players[0].name: {
-                      "single_pawn_pos": {"R1": "RB1", "R2": "P28", "Y1":"P28", "Y2": "P28"},
-                      "block_pawn_pos": {"BL2": "P27", "BL3": "YH3"}},
+                      "single_pawn_pos": {"R1": "RH6", "R2": "RH6", "R3": "RH6", "R4": "RH6", "Y1":"YH6", "Y2": "YH6", "Y3":"YH6", "Y4":"P26"},
+                      "block_pawn_pos": {}},
                   ludo.config.players[1].name: {
-                      "single_pawn_pos": {"G1": "GB1", "G2": "P1", "G3": "P2", "G4": "P2", "B1": "P41", "B3": "BH2",
-                                          "B2": "P41",
+                      "single_pawn_pos": {"G1": "P13", "G2": "GH6", "G3": "GH6", "G4": "GH6", "B1": "BH6", "B2":"BH6", "B3": "BH6",
                                           "B4": "BH6"},
                       "block_pawn_pos": {}},
-                  "all_blocks": [
-                      PawnBlock(
-                          [pawn for id in ["R3", "R4"] for pawn in ludo.pawns[ludo.get_colour_from_id(id)] if
-                           pawn.id == id],
-                          "BL2", rigid=True),
-                      PawnBlock(
-                          [pawn for id in ["Y3", "Y4"] for pawn in ludo.pawns[ludo.get_colour_from_id(id)] if
-                           pawn.id == id],
-                          "BL3", rigid=True),
-                  ],
+                  "all_blocks": [],
                   }
-    # ludo.state = {"current_player": 1, "dice_roll": [6, 6, 2], "last_move_id": 0,
+    # ludo.state = {"game_over":False,"current_player": 1, "dice_roll": [6, 6, 2], "num_more_moves":0, "last_move_id": 0,
     #               ludo.config.players[0].name: {"single_pawn_pos": {"R1": "RH6","R2": "RH6","R3": "RH6","R4": "RH6", "Y1": "YH6", "Y2": "YH6","Y3": "YH6","Y4": "YH6"},
     #                                             "block_pawn_pos": {}},
     #               ludo.config.players[1].name: {
@@ -542,9 +560,18 @@ if __name__ == "__main__":
     #                   "block_pawn_pos": {}},
     #               "all_blocks": [],
     #               }
+    # ludo.state = {"game_over":False,"current_player": 1, "dice_roll": [1], "num_more_moves":0, "last_move_id": 0,
+    #               ludo.config.players[0].name: {"single_pawn_pos": {"R1": "RH6","R2": "RH6","R3": "RH6","R4": "RH6", "Y1": "YH6", "Y2": "YH6","Y3": "YH6","Y4": "YH6"},
+    #                                             "block_pawn_pos": {}},
+    #               ludo.config.players[1].name: {
+    #                   "single_pawn_pos": {"G1": "GH5", "G2": "GH6", "G3": "GH6", "G4": "GH6", "B1": "BH6","B2": "BH6","B3": "BH6",
+    #                                       "B4": "BH6"},
+    #                   "block_pawn_pos": {}},
+    #               "all_blocks": [],
+    #               }
     ludo.all_current_moves = ludo.all_possible_moves(ludo.state)
     # print(ludo.state, [{"roll": move["roll"], "moves": len(move["moves"])} for move in ludo.all_current_moves])
-    # ludo.turn([["G4", "P51", "P1"]], 1)
-    # print([move["moves"] for move in ludo.all_current_moves if move["roll"] == [6,6,2] ][0])
+    ludo.turn([["Y4", "P26", "YH6"]], 1)
+    print([move["moves"] for move in ludo.all_current_moves if move["roll"] == [6,1] ][0])
     # print(ludo.all_current_moves)
     app.run(host="0.0.0.0", port=5000)

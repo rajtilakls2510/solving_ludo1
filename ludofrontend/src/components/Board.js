@@ -59,6 +59,7 @@ const Board = () => {
       { pawn_ids: ["R2", "Y3"], rigid: false },
       { pawn_ids: ["B2", "B3"], rigid: true },
     ],
+    game_over: false,
     moves: [],
     current_move: [],
     selected_pawns: [],
@@ -136,21 +137,33 @@ const Board = () => {
   };
 
   useEffect(() => {
-    if (
-      JSON.stringify(availableMoves) !== JSON.stringify([[]]) &&
-      JSON.stringify(availableMoves) !== JSON.stringify([])
-    ) {
-      console.log("nd", availableMoves);
-      let move_completed = true;
-      let initial = availableMoves[0];
-      for (let i = 1; i < availableMoves.length; i++)
-        move_completed &= checkSame(initial, availableMoves[i]);
+    if (!boardState.game_over) {
+      if (
+        JSON.stringify(availableMoves) !== JSON.stringify([[]]) &&
+        JSON.stringify(availableMoves) !== JSON.stringify([])
+      ) {
+        console.log("nd", availableMoves);
+        let move_completed = true;
+        let initial = availableMoves[0];
+        for (let i = 1; i < availableMoves.length; i++)
+          move_completed &= checkSame(initial, availableMoves[i]);
 
-      if (move_completed) {
-        Api.postMove({
-          move: availableMoves[0],
-          move_id: boardState.last_move_id + 1,
-        })
+        if (move_completed) {
+          Api.postMove({
+            move: availableMoves[0],
+            move_id: boardState.last_move_id + 1,
+          })
+            .then((res) => {
+              applyBoardState(res.data);
+            })
+            .catch((error) => {
+              console.log("State fetch error");
+            });
+        }
+      } else if (JSON.stringify(availableMoves) === JSON.stringify([[]])) {
+        console.log("no valid move found, skipping turn");
+        console.log("d", availableMoves);
+        Api.postMove({ move: [[]], move_id: boardState.last_move_id + 1 })
           .then((res) => {
             applyBoardState(res.data);
           })
@@ -158,16 +171,8 @@ const Board = () => {
             console.log("State fetch error");
           });
       }
-    } else if (JSON.stringify(availableMoves) === JSON.stringify([[]])) {
-      console.log("no valid move found, skipping turn");
-      console.log("d", availableMoves);
-      Api.postMove({ move: [[]], move_id: boardState.last_move_id + 1 })
-        .then((res) => {
-          applyBoardState(res.data);
-        })
-        .catch((error) => {
-          console.log("State fetch error");
-        });
+    } else {
+      console.log("GAME OVER");
     }
   }, [availableMoves]);
 
