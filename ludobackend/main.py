@@ -166,7 +166,11 @@ class Ludo:
             for colour, player in self.config.colour_player.items():
                 if player != self.config.players[self.state["current_player"]]:
                     for pawn in self.pawns[colour]:
-                        if self.state[player.name]["single_pawn_pos"][pawn.id] not in self.finale_positions:
+                        try:
+                            if self.state[player.name]["single_pawn_pos"][pawn.id] not in self.finale_positions:
+                                game_over = False
+                        except:
+                            # If pawn is blocked with other, that means the game is not over for the player
                             game_over = False
             self.state["game_over"] = game_over
             if not game_over:
@@ -465,7 +469,7 @@ class Ludo:
                                 if next_state[self.config.players[next_state["current_player"]].name]["single_pawn_pos"][pawn.id] not in self.finale_positions:
                                     break
                             else:
-                                return sp
+                                return [sp]
                     except:
                         # If any error comes up, it means not all pawns are in finale positions
                         pass
@@ -539,27 +543,33 @@ def take_move():
 
 
 if __name__ == "__main__":
-    ludo = Ludo(GameConfig([[Ludo.RED, Ludo.YELLOW], [Ludo.BLUE, Ludo.GREEN]]))
-
-    ludo.state = {"game_over":False,"current_player": 0, "dice_roll": [6,1], "num_more_moves": 0, "last_move_id": 0,
-                  ludo.config.players[0].name: {
-                      "single_pawn_pos": {"R1": "RH6", "R2": "RH6", "R3": "RH6", "R4": "RH6", "Y1":"YH6", "Y2": "YH6", "Y3":"YH6", "Y4":"P26"},
-                      "block_pawn_pos": {}},
-                  ludo.config.players[1].name: {
-                      "single_pawn_pos": {"G1": "P13", "G2": "GH6", "G3": "GH6", "G4": "GH6", "B1": "BH6", "B2":"BH6", "B3": "BH6",
-                                          "B4": "BH6"},
-                      "block_pawn_pos": {}},
-                  "all_blocks": [],
-                  }
-    # ludo.state = {"game_over":False,"current_player": 1, "dice_roll": [6, 6, 2], "num_more_moves":0, "last_move_id": 0,
-    #               ludo.config.players[0].name: {"single_pawn_pos": {"R1": "RH6","R2": "RH6","R3": "RH6","R4": "RH6", "Y1": "YH6", "Y2": "YH6","Y3": "YH6","Y4": "YH6"},
-    #                                             "block_pawn_pos": {}},
+    ludo = Ludo(GameConfig([[Ludo.RED], [Ludo.GREEN], [Ludo.YELLOW], [Ludo.BLUE]]))
+    #
+    # ludo.state = {"game_over":False,"current_player": 0, "dice_roll": [6,1], "num_more_moves": 0, "last_move_id": 0,
+    #               ludo.config.players[0].name: {
+    #                   "single_pawn_pos": {"R1": "RH6", "R2": "RH6", "R3": "RH6", "R4": "RH6", "Y1":"YH6", "Y2": "YH6", "Y3":"YH6", "Y4":"P26"},
+    #                   "block_pawn_pos": {}},
     #               ludo.config.players[1].name: {
-    #                   "single_pawn_pos": {"G1": "GH6", "G2": "GH6", "G3": "GH6", "G4": "GH6", "B1": "BH6","B2": "BH6","B3": "BH6",
+    #                   "single_pawn_pos": {"G1": "P13", "G2": "GH6", "G3": "GH6", "G4": "GH6", "B1": "BH6", "B2":"BH6", "B3": "BH6",
     #                                       "B4": "BH6"},
     #                   "block_pawn_pos": {}},
     #               "all_blocks": [],
     #               }
+    ludo.state = {"game_over":False,"current_player": 3, "dice_roll": [1], "num_more_moves":0, "last_move_id": 0,
+                  ludo.config.players[0].name:
+                      {"single_pawn_pos": {"R1": "RB1","R2": "RB2","R3": "RB3","R4": "RB4"},
+                                                "block_pawn_pos": {}},
+                  ludo.config.players[1].name: {
+                      "single_pawn_pos": {"G1": "GH6", "G2": "GB2", "G3": "P33", "G4": "P15"},
+                      "block_pawn_pos": {}},
+                  ludo.config.players[2].name: {
+                      "single_pawn_pos": {"Y1": "P42", "Y2": "P36", "Y3": "YB3", "Y4": "YB4"},
+                      "block_pawn_pos": {}},
+                  ludo.config.players[3].name: {
+                      "single_pawn_pos": {"B1": "BH6", "B2": "BH5", "B3": "BH6", "B4": "BH6"},
+                      "block_pawn_pos": {}},
+                  "all_blocks": [],
+                  }
     # ludo.state = {"game_over":False,"current_player": 1, "dice_roll": [1], "num_more_moves":0, "last_move_id": 0,
     #               ludo.config.players[0].name: {"single_pawn_pos": {"R1": "RH6","R2": "RH6","R3": "RH6","R4": "RH6", "Y1": "YH6", "Y2": "YH6","Y3": "YH6","Y4": "YH6"},
     #                                             "block_pawn_pos": {}},
@@ -570,8 +580,9 @@ if __name__ == "__main__":
     #               "all_blocks": [],
     #               }
     ludo.all_current_moves = ludo.all_possible_moves(ludo.state)
+    print(ludo.state)
     # print(ludo.state, [{"roll": move["roll"], "moves": len(move["moves"])} for move in ludo.all_current_moves])
-    ludo.turn([["Y4", "P26", "YH6"]], 1)
-    print([move["moves"] for move in ludo.all_current_moves if move["roll"] == [6,1] ][0])
-    # print(ludo.all_current_moves)
+    # ludo.turn([['Y2', 'P30', 'P33']], 1)
+    # print([move["moves"] for move in ludo.all_current_moves if move["roll"] == [6,1] ][0])
+    print(ludo.all_current_moves)
     app.run(host="0.0.0.0", port=5000)
