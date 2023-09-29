@@ -393,6 +393,7 @@ class LudoModel:
         return state, num_more_moves
 
     def generate_next_state(self, state, move):
+        state = deepcopy(state)
         if state["num_more_moves"] > 0:
             state["num_more_moves"] -= 1
         if move != [[]]:
@@ -489,28 +490,15 @@ class Ludo:
 
     Methods:
         - __init__(config): Constructor to create the engine with a GameConfig object. See doc string of GameConfig class
-        - turn(move, move_id): Takes a move. "move_id" is presented to verify no move is taken twice.
+        - reset(): Resets the engine to produce a new game
+        - turn(move, move_id): Takes a move. "move_id" is presented to ensure no move is taken twice.
 
     """
 
     def __init__(self, config):
         self.model = LudoModel(config)
+        self.reset()
 
-        # Creating initial state
-        roll = self.generate_dice_roll()
-
-        self.state = {"game_over": False, "current_player": 0, "num_more_moves": 0, "dice_roll": roll,
-                      "last_move_id": 0}
-
-        for i, player in enumerate(config.players):
-            pawns = {}
-            for colour in config.player_colour[i]:
-                for pawn, pos in zip(self.model.pawns[colour], self.model.bases[colour]):
-                    pawns[pawn.id] = pos
-            self.state[player.name] = {"single_pawn_pos": pawns, "block_pawn_pos": {}}
-        self.state["all_blocks"] = []
-
-        self.all_current_moves = self.model.all_possible_moves(self.state)
 
     def generate_dice_roll(self):
         roll = []
@@ -520,6 +508,23 @@ class Ludo:
             if rnd != 6:
                 break
         return roll
+
+    def reset(self):
+        # Creating initial state
+        roll = self.generate_dice_roll()
+
+        self.state = {"game_over": False, "current_player": 0, "num_more_moves": 0, "dice_roll": roll,
+                      "last_move_id": 0}
+
+        for i, player in enumerate(self.model.config.players):
+            pawns = {}
+            for colour in self.model.config.player_colour[i]:
+                for pawn, pos in zip(self.model.pawns[colour], self.model.bases[colour]):
+                    pawns[pawn.id] = pos
+            self.state[player.name] = {"single_pawn_pos": pawns, "block_pawn_pos": {}}
+        self.state["all_blocks"] = []
+
+        self.all_current_moves = self.model.all_possible_moves(self.state)
 
     def turn(self, move, move_id):
         # Take the move and create next state
