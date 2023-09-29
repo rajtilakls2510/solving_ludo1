@@ -91,7 +91,8 @@ class LudoModel:
     """ This class handles all game calculations and is meant to be used with MCTS to look forward in time. This object is supposed to be used as LudoObject.model
         Methods:
             - generate_next_state(state, move): This method returns the next state given the current state and move. Note: This method does not validate whether the move is applicable or not.
-                                        It expects the move is a valid one. Do not send a move which is invalid. Unknown behaviour will be observed in that case.
+                                        It expects the move is a valid one. Do not send a move which is invalid. Unknown behaviour will be observed in that case. Moreover, this method does not change
+                                        the "dice_roll" value and keeps it as it is since this method does not generate a new roll. New rolls are generated only by the Ludo class.
             - all_possible_moves(state): This method returns all possible validated moves from the current state. The return object is described as:
                              return [{"roll": [throw1, throw2,...], "moves": [[{Pawn1: Position}, {Pawn2: Position}, ...], ... ]}, ...]
     """
@@ -392,11 +393,31 @@ class LudoModel:
         return state, num_more_moves
 
     def generate_next_state(self, state, move):
-        total_moves = 0
-        for m, r in zip(move, state["dice_roll"]):
-            state, num_more_moves = self.__generate_next_state(state, r, m[1], m[0])
-            total_moves += num_more_moves
-        state["num_more_moves"] = total_moves
+        if state["num_more_moves"] > 0:
+            state["num_more_moves"] -= 1
+        if move != [[]]:
+            total_moves = 0
+            for m, r in zip(move, state["dice_roll"]):
+                state, num_more_moves = self.__generate_next_state(state, r, m[1], m[0])
+                total_moves += num_more_moves
+            state["num_more_moves"] = total_moves
+        # Update last move_id
+        state["last_move_id"] += 1
+        # Change the turn
+        if state["num_more_moves"] == 0:
+            state["current_player"] = (state["current_player"] + 1) % len(self.config.players)
+        # Check game over or not by evaluating if all other players have completed
+        game_over = True
+        for colour, player in self.config.colour_player.items():
+            if player != self.config.players[state["current_player"]]:
+                for pawn in self.pawns[colour]:
+                    try:
+                        if state[player.name]["single_pawn_pos"][pawn.id] not in self.finale_positions:
+                            game_over = False
+                    except:
+                        # If pawn is blocked with other, that means the game is not over for the player
+                        game_over = False
+        state["game_over"] = game_over
         return state
 
     def generate_and_validate_moves(self, state, roll, selected_pawns):
@@ -476,13 +497,7 @@ class Ludo:
         self.model = LudoModel(config)
 
         # Creating initial state
-        """ """
-        roll = []
-        for i in range(3):
-            rnd = randint(1, 6)
-            roll.append(rnd)
-            if rnd != 6:
-                break
+        roll = self.generate_dice_roll()
 
         self.state = {"game_over": False, "current_player": 0, "num_more_moves": 0, "dice_roll": roll,
                       "last_move_id": 0}
@@ -495,46 +510,26 @@ class Ludo:
             self.state[player.name] = {"single_pawn_pos": pawns, "block_pawn_pos": {}}
         self.state["all_blocks"] = []
 
-        # print(self.state)
         self.all_current_moves = self.model.all_possible_moves(self.state)
 
+    def generate_dice_roll(self):
+        roll = []
+        for i in range(3):
+            rnd = randint(1, 6)
+            roll.append(rnd)
+            if rnd != 6:
+                break
+        return roll
+
     def turn(self, move, move_id):
-        if self.state["num_more_moves"] > 0:
-            self.state["num_more_moves"] -= 1
         # Take the move and create next state
         if move_id == self.state["last_move_id"] + 1:
-            if move != [[]]:
-                self.state = self.model.generate_next_state(self.state, move)
-            # print(self.state["num_more_moves"])
-            # Update last move_id
-            self.state["last_move_id"] += 1
-
-            # Change the turn
-            if self.state["num_more_moves"] == 0:
-                self.state["current_player"] = (self.state["current_player"] + 1) % len(self.model.config.players)
-
-            # Check game over or not by evaluating if all other players have completed
-            game_over = True
-            for colour, player in self.model.config.colour_player.items():
-                if player != self.model.config.players[self.state["current_player"]]:
-                    for pawn in self.model.pawns[colour]:
-                        try:
-                            if self.state[player.name]["single_pawn_pos"][pawn.id] not in self.model.finale_positions:
-                                game_over = False
-                        except:
-                            # If pawn is blocked with other, that means the game is not over for the player
-                            game_over = False
-            self.state["game_over"] = game_over
-            if not game_over:
+            self.state = self.model.generate_next_state(self.state, move)
+            if not self.state["game_over"]:
                 # cache all possible next moves
                 self.all_current_moves = self.model.all_possible_moves(self.state)
                 # Generate new dice roll
-                roll = []
-                for i in range(3):
-                    rnd = randint(1, 6)
-                    roll.append(rnd)
-                    if rnd != 6:
-                        break
+                roll = self.generate_dice_roll()
 
                 self.state["dice_roll"] = roll
                 print(self.state, [{"roll": move["roll"], "moves": len(move["moves"])} for move in self.all_current_moves])
