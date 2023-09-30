@@ -1,5 +1,6 @@
 from copy import deepcopy
 from random import randint
+import numpy as np
 
 """ This file contains only stuff related to the implementation of the Ludo Engine """
 
@@ -31,7 +32,7 @@ class Pawn:
         return self.id == other.id
 
     def __repr__(self):
-        return f"PawnI{self.id}C{self.colour}"
+        return f"Pawn[{self.id},{self.colour}]"
 
 
 class PawnBlock(Pawn):
@@ -75,7 +76,6 @@ class GameConfig:
                  colour_player = {"RED": Player("Player1"), "GREEN": Player("Player2"), ...}
     """
 
-    # Player_colour_choices = [(RED, YELLOW), (GREEN, BLUE)]
     def __init__(self, player_colour_choices):
         self.player_colour = player_colour_choices
         self.players = [Player(f"Player {i + 1}") for i in range(len(self.player_colour))]
@@ -95,6 +95,7 @@ class LudoModel:
                                         the "dice_roll" value and keeps it as it is since this method does not generate a new roll. New rolls are generated only by the Ludo class.
             - all_possible_moves(state): This method returns all possible validated moves from the current state. The return object is described as:
                              return [{"roll": [throw1, throw2,...], "moves": [[{Pawn1: Position}, {Pawn2: Position}, ...], ... ]}, ...]
+            - state_to_repr(state):
     """
 
 
@@ -469,6 +470,38 @@ class LudoModel:
 
         return possible_moves
 
+    def state_to_repr(self, state):
+        """ The state representation: [R1, R2, R3, R4, G1, G2, G3, G4, Y1, Y2, Y3, Y4, B1, B2, B3, B4, RPlayer, GPlayer, YPlayer, BPlayer, current]"""
+
+        representation = np.zeros(shape=(59, 21))
+        colour_pawn_index = {"R": -1, "G": 3, "Y": 7, "B": 11}
+        pawn_pos_index = {"B": -1, "P": 0, "H": 52}
+        colour_player_index = {LudoModel.RED: 16, LudoModel.GREEN: 17, LudoModel.YELLOW: 18, LudoModel.BLUE: 19}
+        for player_idx, (colours, player) in enumerate(zip(self.config.player_colour, self.config.players)):
+
+            # Setting RPlayer, GPlayer, YPlayer, BPlayer
+            for colour in colours:
+                representation[:, colour_player_index[colour]] = player_idx + 1
+
+            # Setting Single Pawns
+            for (pawn_id, pos) in state[player.name]["single_pawn_pos"].items():
+                colour_idx = colour_pawn_index[pawn_id[0]] + int(pawn_id[-1])
+                p, num = (pos[0], int(pos[1:])) if pos[0] == "P" else (pos[1], int(pos[2:])) if pos[1] == "H" else (pos[1], 1)
+                pos_idx = pawn_pos_index[p] + num
+                representation[pos_idx, colour_idx] = 1
+
+            # Setting Block Pawns
+            for (block_pawn_id, pos) in state[player.name]["block_pawn_pos"].items():
+                p, num = (pos[0], int(pos[1:])) if pos[0] == "P" else (pos[1], int(pos[2:]))
+                pos_idx = pawn_pos_index[p] + num
+                for pawn in self.fetch_block_from_id(state, block_pawn_id).pawns:
+                    pawn_id = pawn.id
+                    colour_idx = colour_pawn_index[pawn_id[0]] + int(pawn_id[-1])
+                    representation[pos_idx, colour_idx] = 1
+        representation[:, 20] = state["current_player"] + 1
+        return representation
+
+
 
 class Ludo:
     """ This is the actual game engine which stores the state of the game
@@ -538,6 +571,7 @@ class Ludo:
 
                 self.state["dice_roll"] = roll
                 print(self.state, [{"roll": move["roll"], "moves": len(move["moves"])} for move in self.all_current_moves])
+                print(self.model.state_to_repr(self.state))
                 print(f"player {self.state['current_player']}, roll {roll}")
 
 
