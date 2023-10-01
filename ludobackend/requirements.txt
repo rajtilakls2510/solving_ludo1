@@ -2,3 +2,4 @@ rpyc
 flask
 Flask-Cors
 numpy
+tensorflow==2.10.1

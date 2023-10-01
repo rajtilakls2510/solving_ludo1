@@ -1,13 +1,15 @@
 import rpyc
 from ludo import Ludo, GameConfig, LudoModel
-from mcts_ludo import MCTSTree, MCTSNode, simulate_game, mcts_search
+# from mcts_ludo import MCTSTree, MCTSNode, simulate_game, mcts_search
+import json
+import base64
+import tensorflow as tf
 """ This file contains stuff related to actor and MCTS search """
 
 TRAIN_SERVER_IP = "localhost"
 TRAIN_SERVER_PORT = 18861
-NUM_GAMES = 10
+NUM_GAMES = 1
 
-train_server_conn = None
 
 class Actor:
     def __init__(self):
@@ -21,14 +23,29 @@ class Actor:
 
         return game_config, game_engine
 
-    def pull_network_architecture(self):
+    def pull_network_architecture(self, config):
+        """ This method sends back a dictionary of player networks
+            Return:
+                networks= {"Player 1": model, "Player 2": another model, ...}
+        """
+
         try:
-            if self.train_server_conn is None:
-                self.train_server_conn = rpyc.connect(TRAIN_SERVER_IP, TRAIN_SERVER_PORT)
+            network_list = self.train_server_conn.root.get_nnet_list()
 
-            network_architectures = self.train_server_conn.root.get_nnet_list()
+            # TODO: Choose a network (from network_list) for each player in config object
+            network_choices = {}
+            for player in config.players: network_choices[player.name] = "some_model" # Dummy
 
-            return network_architectures
+            networks = {}
+            for player_name, choice in network_choices.items():
+                serialized_model = json.loads(self.train_server_conn.root.get_nnet(choice))
+                model = tf.keras.Model.from_config(serialized_model["config"])
+                params = serialized_model["params"]
+                for i in range(len(params)):
+                    params[i] = tf.io.parse_tensor(base64.b64decode(params[i]), out_type=tf.float32)
+                model.set_weights(params)
+                networks[player_name] = model
+            return networks
 
         except Exception as e:
             print(f"Error while pulling network architectures: {str(e)}")
@@ -69,7 +86,7 @@ class Actor:
         for move_data in data_store:
             print(f"Player: {move_data['player']}, Move: {move_data['move']}")
 
-        # just reset the ludo engine
+        # TODO: just reset the ludo engine
 
 
 
@@ -79,36 +96,24 @@ class Actor:
             if self.train_server_conn is None:
                 print("Error: Training server connection is not established.")
                 return
-
-            # TODO: Define the format and structure of the data you want to send to the training server
-            # For example, you can send game moves or any other relevant data from data_store
-            # Replace the following lines with your actual data formatting and sending code.
-
-            # Example: Sending game moves
-            game_moves = data_store.get("game_moves", [])
-            self.train_server_conn.root.receive_game_moves(game_moves)
-
-            # Example: Sending other game-related data
-            # data = data_store.get("key_name", default_value)
-            # self.train_server_conn.root.receive_data(data)
-
-            print("Data sent to the training server successfully.")
+            self.train_server_conn.root.push_game_data(json.dumps(data_store), json.dumps(log))
 
         except Exception as e:
             print(f"Error while sending data to the training server: {str(e)}")
 
 
     def start(self):
+        self.train_server_conn = rpyc.connect(TRAIN_SERVER_IP, TRAIN_SERVER_PORT)
         game = 0
         while game < NUM_GAMES:
             game_config, game_engine = self.initialize_game()
-            network_architecture = self.pull_network_architecture()
+            network_architecture = self.pull_network_architecture(game_config)
             data_store = self.initialize_data_stores()
-            
+
             self.play_game(game_config, game_engine, network_architecture, data_store)
-            
-            self.send_data_to_train_server(data_store)
-            
+
+            self.send_data_to_train_server(data_store, log) # TODO: Implement log too
+
             game += 1
 
 if __name__ == "__main__":
