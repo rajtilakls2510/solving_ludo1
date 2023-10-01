@@ -94,8 +94,9 @@ class LudoModel:
                                         It expects the move is a valid one. Do not send a move which is invalid. Unknown behaviour will be observed in that case. Moreover, this method does not change
                                         the "dice_roll" value and keeps it as it is since this method does not generate a new roll. New rolls are generated only by the Ludo class.
             - all_possible_moves(state): This method returns all possible validated moves from the current state. The return object is described as:
-                             return [{"roll": [throw1, throw2,...], "moves": [[{Pawn1: Position}, {Pawn2: Position}, ...], ... ]}, ...]
-            - state_to_repr(state):
+                             return [{"roll": [throw1, throw2,...], "moves": [[[Pawn1, Current Position, Destination Position], [Pawn2, Current Position, Destination Position], [[Pawn3, Pawn4], Current Position, Desctination Position] ...], ... ]}, ...]
+            - state_to_repr(state): This method converts the state dictionary to its tensor representation (returns numpy array).
+            - get_state_jsonable(state): This method convert the state dictionary to a jsonable dictionary
     """
 
 
@@ -501,6 +502,30 @@ class LudoModel:
         representation[:, 20] = state["current_player"] + 1
         return representation
 
+    def get_state_jsonable(self, state):
+        new_state = {}
+        pawns = {}
+        positions = []
+        for player in self.config.players:
+            # pawns.update(ludo.state[player.name]["single_pawn_pos"])
+            for pawn_id, pos in state[player.name]["single_pawn_pos"].items():
+                pawns[pawn_id] = {"colour": self.get_colour_from_id(pawn_id), "blocked": False}
+                positions.append({"pawn_id": pawn_id, "pos_id": pos})
+            for block_id, pos in state[player.name]["block_pawn_pos"].items():
+                for pawn in self.fetch_block_from_id(state, block_id).pawns:
+                    pawns[pawn.id] = {"colour": self.get_colour_from_id(pawn.id), "blocked": True}
+                    positions.append({"pawn_id": pawn.id, "pos_id": pos})
+        new_state["game_over"] = state["game_over"]
+        new_state["pawns"] = pawns
+        new_state["positions"] = positions
+        new_state["current_player"] = state["current_player"]
+        new_state["dice_roll"] = state["dice_roll"]
+        new_state["last_move_id"] = state["last_move_id"]
+        new_state["num_more_moves"] = state["num_more_moves"]
+        new_state["blocks"] = []
+        for block in state["all_blocks"]:
+            new_state["blocks"].append({"pawn_ids": [pawn.id for pawn in block.pawns], "rigid": block.rigid})
+        return new_state
 
 
 class Ludo:
@@ -571,7 +596,6 @@ class Ludo:
 
                 self.state["dice_roll"] = roll
                 print(self.state, [{"roll": move["roll"], "moves": len(move["moves"])} for move in self.all_current_moves])
-                print(self.model.state_to_repr(self.state))
                 print(f"player {self.state['current_player']}, roll {roll}")
 
 

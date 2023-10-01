@@ -2,6 +2,10 @@ import rpyc
 from signal import signal, SIGINT, SIGTERM
 import threading
 
+
+import tensorflow as tf
+from tensorflow.keras import Model, layers, Input
+
 """ This file contains stuff related to the train server which serves the actor """
 
 server = None
@@ -50,6 +54,19 @@ if __name__ == "__main__":
 
     signal(SIGINT, handle_close)
     signal(SIGTERM, handle_close)
+
+
+    # Saving an nnet to test
+    inp = Input(shape=(59, 21))
+    x = layers.Flatten()(inp)
+    out = layers.Dense(1)(x)
+
+
+
+
+
+
+
     threading.Thread(target=start_server).start()
     print("Train Server Started")
 
