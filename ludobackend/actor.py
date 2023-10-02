@@ -1,15 +1,24 @@
 import rpyc
 from ludo import Ludo, GameConfig, LudoModel
-# from mcts_ludo import MCTSTree, MCTSNode, simulate_game, mcts_search
 import json
+from copy import deepcopy
+import random
 import base64
 import tensorflow as tf
-""" This file contains stuff related to actor and MCTS search """
 
 TRAIN_SERVER_IP = "localhost"
 TRAIN_SERVER_PORT = 18861
 NUM_GAMES = 1
 
+class PlayerAgent:
+    def __init__(self, player_color, game_engine):
+        self.player_color = player_color
+        self.game_engine = game_engine
+
+    def take_turn(self, available_moves, game_state):
+        if available_moves:
+            selected_move = random.choice(available_moves)
+            self.game_engine.turn(selected_move, game_state["last_move_id"])
 
 class Actor:
     def __init__(self):
@@ -54,41 +63,72 @@ class Actor:
     def initialize_data_stores(self):
         # Initialize data stores for logging and other game-related data
         data_store = {
-            "Player Won": index,
-            "States": [] #game state tensor state_to_repr function in ludo model
+            "player_won": None,  # Initialize as None until a player wins
+            "states": [],  # List of game state tensors
         }
 
-        return data_store
+        log = {
+            "config": None,  # Game configuration dictionary
+            "game": [],  # List of dictionaries for each game
+            "player_won": None  # Initialize as None until a player wins
+        }
 
+        return data_store, log
 
-    def play_game(self, game_config, game_engine, network_architecture, data_store):
+    def create_player_agent(self, player_color, game_engine):
+        return PlayerAgent(player_color, game_engine)
+    
+    #TODO: make 4 different agents, only the current agent in play works on its mtcs search. 
+    # generate random games for now
+
+    def play_game(self, game_config, game_engine, network_architecture, data_store, log):
         players = [LudoModel.RED, LudoModel.GREEN, LudoModel.YELLOW, LudoModel.BLUE]
-        
-        #TODO: make 4 different agents, only the current agent in play works on its mtcs search. 
-        # generate random games for now
+        player_agents = {}
+
+        for player_color in players:
+            player_agents[player_color] = self.create_player_agent(player_color, game_engine)
+
+        current_player_index = 0
+
+        #TODO: is_game_over in game_engine
         while not game_engine.is_game_over():
-            # for current_player in players:
-                game_state_copy = game_engine.copy_game_state()
+            current_player = players[current_player_index]
+            game_state_copy = deepcopy(game_engine.state)
 
-                best_move = mcts_search(game_state_copy, num_simulations=1000)
+            if current_player in network_architecture:
+                current_agent = player_agents[current_player]
 
-                game_engine.apply_moves(current_player, [best_move])
-                #TODO: from the turn function take the next player in play
+                all_moves = game_engine.model.all_possible_moves(game_state_copy)
 
-                game_data = {
-                    "player": current_player,
-                    "move": best_move,
-                    "game_state": game_engine.get_game_state()
-                }
-                data_store.append(game_data)
+                if all_moves:
+                    random_move = random.choice(all_moves)
+                    best_move = random_move["moves"]
+                else:
+                    best_move = None
+
+                current_agent.take_turn(all_moves, game_state_copy)
+
+                if best_move:
+                    game_data = {
+                        "player": current_player + 1,
+                        "move": best_move,
+                        "game_state": game_engine.model.get_state_jsonable(game_state_copy)
+                    }
+                    log["game"].append(game_data)
+
+
+            current_player_index = (current_player_index + 1) % len(players)
 
         print("Game Moves:")
-        for move_data in data_store:
+        for move_data in log["game"]:
             print(f"Player: {move_data['player']}, Move: {move_data['move']}")
 
-        # TODO: just reset the ludo engine
+        data_store["player_won"] = game_engine.state["current_player"] + 1
+        data_store["states"].append(game_engine.model.state_to_repr(game_state_copy).tolist())
+        log["config"] = game_engine.model.get_dict()
+        log["player_won"] = data_store["player_won"]
 
-
+        game_engine.reset()
 
     def send_data_to_train_server(self, data_store, log):
         try:
@@ -101,18 +141,17 @@ class Actor:
         except Exception as e:
             print(f"Error while sending data to the training server: {str(e)}")
 
-
     def start(self):
         self.train_server_conn = rpyc.connect(TRAIN_SERVER_IP, TRAIN_SERVER_PORT)
         game = 0
         while game < NUM_GAMES:
             game_config, game_engine = self.initialize_game()
             network_architecture = self.pull_network_architecture(game_config)
-            data_store = self.initialize_data_stores()
+            data_store, log = self.initialize_data_stores()
 
-            self.play_game(game_config, game_engine, network_architecture, data_store)
+            self.play_game(game_config, game_engine, network_architecture, data_store, log)
 
-            self.send_data_to_train_server(data_store, log) # TODO: Implement log too
+            self.send_data_to_train_server(data_store, log)
 
             game += 1
 
@@ -123,4 +162,3 @@ if __name__ == "__main__":
         actor.start()
     except Exception as e:
         print(f"Couldn't connect to the Train Server: {str(e)}")
-
