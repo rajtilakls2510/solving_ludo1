@@ -8,8 +8,9 @@ import numpy as np
 class Player:
     """This class stores a particular player"""
 
-    def __init__(self, name):
+    def __init__(self, name, colours):
         self.name = name
+        self.colours = colours
 
     def __eq__(self, other):
         return self.name == other.name
@@ -18,7 +19,7 @@ class Player:
         return self.name
 
     def get_dict(self):
-        return {"name": self.name}
+        return {"name": self.name, "colours": self.colours}
 
 
 class Pawn:
@@ -78,7 +79,7 @@ class GameConfig:
 
     def __init__(self, player_colour_choices):
         self.player_colour = player_colour_choices
-        self.players = [Player(f"Player {i + 1}") for i in range(len(self.player_colour))]
+        self.players = [Player(f"Player {i + 1}", colours) for i, colours in enumerate(self.player_colour)]
         self.colour_player = {colour: self.players[i] for i, player in enumerate(self.player_colour) for colour
                               in player}
 
@@ -430,14 +431,12 @@ class LudoModel:
             # find out all possible movable pawns
             next_possible_pawns = self.find_next_possible_pawns(state)
             # Validate whether moving that pawn is possible or not for roll[0]
-            # valid_pawn_selections = []
             for pawn, current_pos in next_possible_pawns["single_pawns"] + next_possible_pawns["block_pawns"]:
                 valid, destination_pos = self.validate_pawn_move(state, roll[0], current_pos, pawn)
                 # If valid move, generate new state by moving pawn and recursively find out next valid pawn movements for roll[1:]
                 if valid:
                     sp = deepcopy(selected_pawns)
                     sp.append([pawn, current_pos, destination_pos])
-                    # valid_pawn_selections.append(sp)
                     next_state = self.__generate_next_state(state, roll[0], current_pos, pawn)[0]
 
                     # If all pawns of the player are in finale positions, send back selected pawns
@@ -463,12 +462,12 @@ class LudoModel:
         state = deepcopy(state)
         possible_rolls = [[i] for i in range(1, 6)] + [[6, i] for i in range(1, 6)] + [[6, 6, i] for i in range(1, 6)]
 
-        # possible_moves = [{"roll": [], "moves": [[{Pawn1: Position}, {Pawn2: Position}, ...], ... ]}, ...]
+        # possible_moves = [{"roll": [throw1, throw2,...], "moves": [[[Pawn1, Current Position, Destination Position], [Pawn2, Current Position, Destination Position], [[Pawn3, Pawn4], Current Position, Desctination Position] ...], ... ]}, ...]
         possible_moves = []
         for roll in possible_rolls:
             validated_moves = self.generate_and_validate_moves(state, roll, [])
             possible_moves.append({"roll": roll, "moves": validated_moves})
-
+        possible_moves.append({"roll": [6,6,6], "moves": []})
         return possible_moves
 
     def state_to_repr(self, state):
@@ -544,7 +543,7 @@ class Ludo:
                     "all_blocks": [] (all blocks that are currently present on the board)
                 }
         - all_current_moves: List of all possible moves corresponding to a particular roll. Described below:
-                all_current_moves = [{"roll": [throw1, throw2,...], "moves": [[{Pawn1: Position}, {Pawn2: Position}, ...], ... ]}, ...]
+                all_current_moves = [{"roll": [throw1, throw2,...], "moves": [{"roll": [throw1, throw2,...], "moves": [[[Pawn1, Current Position, Destination Position], [Pawn2, Current Position, Destination Position], [[Pawn3, Pawn4], Current Position, Desctination Position] ...], ... ]}, ...]
 
     Methods:
         - __init__(config): Constructor to create the engine with a GameConfig object. See doc string of GameConfig class
@@ -568,6 +567,7 @@ class Ludo:
         return roll
 
     def reset(self):
+        self.winner = None
         # Creating initial state
         roll = self.generate_dice_roll()
 
@@ -588,6 +588,23 @@ class Ludo:
         # Take the move and create next state
         if move_id == self.state["last_move_id"] + 1:
             self.state = self.model.generate_next_state(self.state, move)
+
+            # Find if any player who has completed his game. Make him the winner if the winner is not already set
+            if not self.winner:
+                for player in self.model.config.players:
+                    not_finale = False
+                    for colour in player.colours:
+                        for pawn in self.model.pawns[colour]:
+                            try:
+                                if self.state[player.name]["single_pawn_pos"][pawn.id] not in self.model.finale_positions:
+                                    not_finale = True
+                            except:
+                                not_finale = True
+                    if not not_finale:
+                        self.winner = player
+                        break
+
+
             if not self.state["game_over"]:
                 # cache all possible next moves
                 self.all_current_moves = self.model.all_possible_moves(self.state)
@@ -595,8 +612,8 @@ class Ludo:
                 roll = self.generate_dice_roll()
 
                 self.state["dice_roll"] = roll
-                print(self.state, [{"roll": move["roll"], "moves": len(move["moves"])} for move in self.all_current_moves])
-                print(f"player {self.state['current_player']}, roll {roll}")
+                # print(self.state, [{"roll": move["roll"], "moves": len(move["moves"])} for move in self.all_current_moves])
+                # print(f"player {self.state['current_player']}, roll {roll}")
 
 
 

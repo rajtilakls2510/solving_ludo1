@@ -16,6 +16,7 @@ server = None
 TRAIN_SERVER_PORT = 18861
 TRAIN_DIRECTORY = Path("runs") / "run1"
 MAX_CHECKPOINTS = 2
+MAX_EXP_STORE_GAMES = 2
 
 """ Hierarchy of store 
 - runs/
@@ -49,26 +50,38 @@ class TrainingService(rpyc.Service):
         os.makedirs(TRAIN_DIRECTORY / "logs", exist_ok=True)
         time = datetime.datetime.now()
 
-        # TOOD: Delete older game files
+        # Storing game data in Experience Store
         with open(TRAIN_DIRECTORY / "experience_store" / (time.strftime("%Y_%b_%d_%H_%M_%S_%f")+".json"), "w", encoding="utf-8") as f:
             f.write(str(data_store))
+
+        # Deleting older game files
+        games = os.listdir(TRAIN_DIRECTORY / "experience_store")
+        if len(games) > MAX_EXP_STORE_GAMES:
+            games.sort()
+            remove = games[:len(games) - MAX_EXP_STORE_GAMES]
+
+            for gm in remove:
+                os.remove(TRAIN_DIRECTORY / "experience_store" / gm)
+
+        # Storing logs
         with open(TRAIN_DIRECTORY / "logs" / (time.strftime("%Y_%b_%d_%H_%M_%S_%f")+".json"), "w", encoding="utf-8") as f:
             f.write(str(log))
 
 
     @rpyc.exposed
     def get_nnet_list(self):
-        """This method sends back a list of all checkpoints present along with the latest one
-        Return:
-            - checkpoints = {"latest": name, "others": [name, ...]}
+        """This method sends back a list of all checkpoints in ascending order of its timestamp. The last one is always the latest checkpoint.
         """
 
         checkpoints = os.listdir(TRAIN_DIRECTORY / "checkpoints")
-        remove = checkpoints[:len(checkpoints)-MAX_CHECKPOINTS]
-        available = checkpoints[len(checkpoints)-MAX_CHECKPOINTS]
+        checkpoints.sort()
+        available = checkpoints
+        if len(checkpoints) > MAX_CHECKPOINTS:
+            remove = checkpoints[:len(checkpoints)-MAX_CHECKPOINTS]
+            available = checkpoints[len(checkpoints)-MAX_CHECKPOINTS:]
 
-        for ch in remove:
-            shutil.rmtree(TRAIN_DIRECTORY / "checkpoints" / ch)
+            for ch in remove:
+                shutil.rmtree(TRAIN_DIRECTORY / "checkpoints" / ch)
 
         return available
 

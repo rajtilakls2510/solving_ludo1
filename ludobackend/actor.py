@@ -1,3 +1,5 @@
+import time
+
 import rpyc
 from ludo import Ludo, GameConfig, LudoModel
 import json
@@ -10,15 +12,24 @@ TRAIN_SERVER_IP = "localhost"
 TRAIN_SERVER_PORT = 18861
 NUM_GAMES = 1
 
-class PlayerAgent:
-    def __init__(self, player_color, game_engine):
-        self.player_color = player_color
-        self.game_engine = game_engine
 
-    def take_turn(self, available_moves, game_state):
-        if available_moves:
-            selected_move = random.choice(available_moves)
-            self.game_engine.turn(selected_move, game_state["last_move_id"])
+class PlayerAgent:
+    def __init__(self, player, game_engine, eval_network):
+        self.player = player
+        self.game_engine = game_engine
+        self.eval_network = eval_network
+
+    def get_next_move(self, available_moves, game_state):
+
+        # TODO: Write MCTS Search to find next move here
+        if len(available_moves) > 0:
+            return random.choice(available_moves)
+        return [[]] # This is the signature for pass move
+
+    def update_tree(self, move):
+        # TODO: Take the move on the tree and free the rest of the tree that is not required
+        pass
+
 
 class Actor:
     def __init__(self):
@@ -26,7 +37,7 @@ class Actor:
 
     def initialize_game(self):
         # TODO: To remove bias can randomize the color of the players
-        game_config = GameConfig([[LudoModel.RED], [LudoModel.GREEN], [LudoModel.YELLOW], [LudoModel.BLUE]])
+        game_config = GameConfig([[LudoModel.RED, LudoModel.YELLOW], [LudoModel.GREEN, LudoModel.BLUE]])
 
         game_engine = Ludo(game_config)
 
@@ -40,10 +51,8 @@ class Actor:
 
         try:
             network_list = self.train_server_conn.root.get_nnet_list()
-
-            # TODO: Choose a network (from network_list) for each player in config object
-            network_choices = {}
-            for player in config.players: network_choices[player.name] = "some_model" # Dummy
+            network_choices = {config.players[0].name: network_list[-1]}
+            for player in config.players[1:]: network_choices[player.name] = random.choice(network_list)
 
             networks = {}
             for player_name, choice in network_choices.items():
@@ -75,60 +84,60 @@ class Actor:
 
         return data_store, log
 
-    def create_player_agent(self, player_color, game_engine):
-        return PlayerAgent(player_color, game_engine)
-    
-    #TODO: make 4 different agents, only the current agent in play works on its mtcs search. 
-    # generate random games for now
-
     def play_game(self, game_config, game_engine, network_architecture, data_store, log):
-        players = [LudoModel.RED, LudoModel.GREEN, LudoModel.YELLOW, LudoModel.BLUE]
-        player_agents = {}
+        player_agents = [PlayerAgent(player, game_engine, network_architecture[player.name]) for player in game_config.players]
 
-        for player_color in players:
-            player_agents[player_color] = self.create_player_agent(player_color, game_engine)
+        game_engine.reset()
+        start_time = time.perf_counter()
+        # i = 0
+        while not game_engine.state["game_over"]:
+            # print(f"\rMove: {i}", end="")
+            # i += 1
+            # Selecting the currently active player
+            current_agent = player_agents[game_engine.state["current_player"]]
 
-        current_player_index = 0
+            game_data = {"game_state": game_engine.model.get_state_jsonable(game_engine.state)}
+            data_store["states"].append(game_engine.model.state_to_repr(game_engine.state).tolist())
 
-        #TODO: is_game_over in game_engine
-        while not game_engine.is_game_over():
-            current_player = players[current_player_index]
-            game_state_copy = deepcopy(game_engine.state)
+            # Finding all possible moves available at the game state
+            all_moves = game_engine.model.all_possible_moves(game_engine.state)
 
-            if current_player in network_architecture:
-                current_agent = player_agents[current_player]
+            # Accumulating the moves available on current dice roll
+            available_moves = None
+            for m in all_moves:
+                if m["roll"] == game_engine.state["dice_roll"]:
+                    available_moves = m["moves"]
+                    break
 
-                all_moves = game_engine.model.all_possible_moves(game_state_copy)
+            # Selecting a move using MCTS (currently random)
+            best_move = current_agent.get_next_move(available_moves, game_engine.state)
 
-                if all_moves:
-                    random_move = random.choice(all_moves)
-                    best_move = random_move["moves"]
-                else:
-                    best_move = None
+            move_id = game_engine.state["last_move_id"]
+            # Taking the turn on the engine
+            game_engine.turn(best_move, game_engine.state["last_move_id"] + 1)
 
-                current_agent.take_turn(all_moves, game_state_copy)
+            # Updating the MCTS tree
+            current_agent.update_tree(best_move)
 
-                if best_move:
-                    game_data = {
-                        "player": current_player + 1,
-                        "move": best_move,
-                        "game_state": game_engine.model.get_state_jsonable(game_state_copy)
-                    }
-                    log["game"].append(game_data)
+            # Storing game data
+            game_data["move"] = best_move
+            game_data["move_id"] = move_id
+            log["game"].append(game_data)
 
+        game_data = {"game_state": game_engine.model.get_state_jsonable(game_engine.state), "move_id": -1, "move": []}
+        log["game"].append(game_data)
+        data_store["states"].append(game_engine.model.state_to_repr(game_engine.state).tolist())
+        end_time = time.perf_counter()
 
-            current_player_index = (current_player_index + 1) % len(players)
+        print(f"Time taken: {end_time - start_time}")
 
         print("Game Moves:")
         for move_data in log["game"]:
-            print(f"Player: {move_data['player']}, Move: {move_data['move']}")
+            print(f"Player: {move_data['game_state']['current_player']}, Move id: {move_data['move_id']}, Move: {move_data['move']}")
 
-        data_store["player_won"] = game_engine.state["current_player"] + 1
-        data_store["states"].append(game_engine.model.state_to_repr(game_state_copy).tolist())
-        log["config"] = game_engine.model.get_dict()
+        data_store["player_won"] = game_config.players.index(game_engine.winner) + 1
+        log["config"] = game_config.get_dict()
         log["player_won"] = data_store["player_won"]
-
-        game_engine.reset()
 
     def send_data_to_train_server(self, data_store, log):
         try:
