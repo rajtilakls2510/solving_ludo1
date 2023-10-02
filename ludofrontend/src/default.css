@@ -534,6 +534,7 @@ NAVBAR
   display: flex;
   flex-direction: column;
   justify-content: center;
+  list-style-type: none;
 }
 
 .nav-link {
@@ -549,6 +550,7 @@ NAVBAR
   cursor: pointer;
   box-shadow: var(--shadow-4);
 }
+
 
 @media screen and (min-width: 768px) {
   .nav-center {
@@ -758,6 +760,30 @@ flex-direction: column;
 .info-container{
   width: 100%;
 }
+
+/* ==================
+VISUALIZER
+================== */
+
+.visualizer-file-container{
+  display: flex;
+  flex-direction: row;
+  column-gap: 2rem;
+
+}
+
+.run-container{
+  display: flex;
+  flex-direction: column;
+  row-gap: 1rem;
+}
+
+.runs{
+  display: flex;
+  flex-direction: column;
+  row-gap: 0.5rem;
+}
+
 
 .cam-feed-container{
   display: flex;

@@ -5,6 +5,7 @@ import json
 import base64
 import tensorflow as tf
 from tensorflow.keras import Model, Input, layers
+tf.config.experimental.set_memory_growth(tf.config.list_physical_devices("GPU")[0], True)
 from pathlib import Path
 import os
 import datetime
@@ -14,7 +15,8 @@ import shutil
 
 server = None
 TRAIN_SERVER_PORT = 18861
-TRAIN_DIRECTORY = Path("runs") / "run1"
+DIRECTORY = Path("runs")
+TRAIN_DIRECTORY = DIRECTORY / "run1"
 MAX_CHECKPOINTS = 2
 MAX_EXP_STORE_GAMES = 2
 
@@ -97,7 +99,27 @@ class TrainingService(rpyc.Service):
                 tf.io.serialize_tensor(tf.convert_to_tensor(params[i])).numpy()).decode('ascii')
         return json.dumps({"config": config, "params": params})
 
+    @rpyc.exposed
+    def get_log_filenames(self, last_amount):
+        runs = os.listdir(DIRECTORY)
+        out = []
+        for r in runs:
+            l = os.listdir(DIRECTORY / r / "logs")
+            l.sort()
+            if len(l) > last_amount:
+                l = l[len(l) - last_amount + 1 :]
+            out.append({"run": r, "files": l})
+        return json.dumps(out)
 
+    @rpyc.exposed
+    def get_log_file(self, path_list):
+        path = DIRECTORY
+        for p in path_list:
+            path = path / p
+
+        with open(path, mode="r", encoding="utf-8") as f:
+            s = f.read()
+        return s
 
 def start_server():
     global server
