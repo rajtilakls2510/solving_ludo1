@@ -4,12 +4,12 @@ import threading
 import json
 import base64
 import tensorflow as tf
-from tensorflow.keras import Model, Input, layers
 tf.config.experimental.set_memory_growth(tf.config.list_physical_devices("GPU")[0], True)
 from pathlib import Path
 import os
 import datetime
 import shutil
+from model import nn_model
 
 """ This file contains stuff related to the train server which serves the actor """
 
@@ -129,10 +129,11 @@ def start_server():
 
 if __name__ == "__main__":
     from rpyc.utils.server import ThreadedServer
+    
+    input_shape = (59,21,1)
+    num_actions = 1240 # (59*21 + 1)
 
-    inp = Input(shape=(5,))
-    x = layers.Dense(10)(inp)
-    model = Model(inputs=inp, outputs=x)
+    model = nn_model(input_shape, num_actions)
 
     model.save(str(TRAIN_DIRECTORY / "checkpoints" / "model1"))
     model.save(str(TRAIN_DIRECTORY / "checkpoints" / "model2"))
