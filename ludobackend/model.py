@@ -50,9 +50,9 @@ def nn_model(input_shape):
     return model
 
 
-if __name__ == "__main__":
-    input_shape = (59,42)
-    model = nn_model(input_shape)
+# if __name__ == "__main__":
+#     input_shape = (59,42)
+#     model = nn_model(input_shape)
 
-    model.summary()
+#     model.summary()
     # plot_model(model, to_file='model_plot.png', show_shapes=True, show_layer_names=True)
