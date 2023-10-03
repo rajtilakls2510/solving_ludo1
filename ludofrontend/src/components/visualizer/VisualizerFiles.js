@@ -42,7 +42,7 @@ const VisualizerFiles = () => {
             ))}
           </div>
         </div>
-        <div className="card file-container">
+        <div className="card run-container">
           {!run ? (
             <h5>No Run Selected</h5>
           ) : (

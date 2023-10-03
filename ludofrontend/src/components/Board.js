@@ -9,7 +9,10 @@ const Board = () => {
   // const [sendMove, setSendMove] = useState(false);
   const [boardState, setBoardState] = useState({
     config: {
-      players: [{ name: "Player 1" }, { name: "Player 2" }],
+      players: [
+        { name: "Player 1", colours: ["red", "yellow"] },
+        { name: "Player 2", colours: ["green", "blue"] },
+      ],
       player_colour: [
         { "Player 1": ["red", "yellow"] },
         { "Player 2": ["green", "blue"] },

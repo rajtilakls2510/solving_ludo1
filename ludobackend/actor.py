@@ -37,7 +37,7 @@ class Actor:
 
     def initialize_game(self):
         # TODO: To remove bias can randomize the color of the players
-        game_config = GameConfig([[LudoModel.RED, LudoModel.YELLOW], [LudoModel.GREEN, LudoModel.BLUE]])
+        game_config = GameConfig([[LudoModel.RED],[ LudoModel.YELLOW], [LudoModel.GREEN], [LudoModel.BLUE]])
 
         game_engine = Ludo(game_config)
 
@@ -124,7 +124,7 @@ class Actor:
             game_data["move_id"] = move_id
             log["game"].append(game_data)
 
-        game_data = {"game_state": game_engine.model.get_state_jsonable(game_engine.state), "move_id": -1, "move": []}
+        game_data = {"game_state": game_engine.model.get_state_jsonable(game_engine.state), "move_id": len(log["game"]), "move": []}
         log["game"].append(game_data)
         data_store["states"].append(game_engine.model.state_to_repr(game_engine.state).tolist())
         end_time = time.perf_counter()
