@@ -21,18 +21,8 @@ def residual_block(x, filters, kernel_size = 3):
 
     return x
 
-def policy_head(x, num_actions):
-    x = Conv1D(2, 1, padding = 'same')(x)
-    x = BatchNormalization()(x)
-    x = Activation('relu')(x)
-
-    x = Flatten()(x)
-    x = Dense(num_actions, activation = 'linear')(x)
-
-    return x
-
 def value_head(x):
-    x = Conv1D(2, 1, padding = 'same')(x)
+    x = Conv1D(1, 1, padding = 'same')(x)
     x = BatchNormalization()(x)
     x = Activation('relu')(x)
 
@@ -42,7 +32,7 @@ def value_head(x):
 
     return x
 
-def nn_model(input_shape, num_actions):
+def nn_model(input_shape):
     input_layer = Input(shape = input_shape)
 
     x = Conv1D(128, 3, padding = 'same')(input_layer)
@@ -52,17 +42,15 @@ def nn_model(input_shape, num_actions):
     for _ in range(28):
         x = residual_block(x, 128)
 
-    policy_output = policy_head(x, num_actions)
     value_output = value_head(x)
 
-    model = Model(inputs = input_layer, outputs = [policy_output, value_output])
+    model = Model(inputs = input_layer, outputs = value_output)
 
     return model
 
 
 # if __name__ == "__main__":
-#     input_shape = (59,21,1)
-#     num_actions = 1240
-#     model = nn_model(input_shape, num_actions)
+#     input_shape = (59,42)
+#     model = nn_model(input_shape)
 
 #     model.summary()

@@ -130,10 +130,9 @@ def start_server():
 if __name__ == "__main__":
     from rpyc.utils.server import ThreadedServer
     
-    input_shape = (59,21,1)
-    num_actions = 1240 # (59*21 + 1)
+    input_shape = (59,42)
 
-    model = nn_model(input_shape, num_actions)
+    model = nn_model(input_shape)
 
     model.save(str(TRAIN_DIRECTORY / "checkpoints" / "model1"))
     model.save(str(TRAIN_DIRECTORY / "checkpoints" / "model2"))
