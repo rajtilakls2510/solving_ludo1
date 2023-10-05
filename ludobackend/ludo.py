@@ -397,8 +397,6 @@ class LudoModel:
 
     def generate_next_state(self, state, move):
         state = deepcopy(state)
-        if state["num_more_moves"] > 0:
-            state["num_more_moves"] -= 1
         if move != [[]]:
             total_moves = 0
             for m, r in zip(move, state["dice_roll"]):
@@ -422,6 +420,8 @@ class LudoModel:
                         # If pawn is blocked with other, that means the game is not over for the player
                         game_over = False
         state["game_over"] = game_over
+        if state["num_more_moves"] > 0:
+            state["num_more_moves"] -= 1
         return state
 
     def generate_and_validate_moves(self, state, roll, selected_pawns):

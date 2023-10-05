@@ -130,14 +130,14 @@ def start_server():
 if __name__ == "__main__":
     from rpyc.utils.server import ThreadedServer
     
-    input_shape = (59,42)
-
-    model = nn_model(input_shape)
-
-    model.save(str(TRAIN_DIRECTORY / "checkpoints" / "model1"))
-    model.save(str(TRAIN_DIRECTORY / "checkpoints" / "model2"))
-    model.save(str(TRAIN_DIRECTORY / "checkpoints" / "model3"))
-    model.save(str(TRAIN_DIRECTORY / "checkpoints" / "model4"))
+    # input_shape = (59,42)
+    #
+    # model = nn_model(input_shape)
+    #
+    # model.save(str(TRAIN_DIRECTORY / "checkpoints" / "model1"))
+    # model.save(str(TRAIN_DIRECTORY / "checkpoints" / "model2"))
+    # model.save(str(TRAIN_DIRECTORY / "checkpoints" / "model3"))
+    # model.save(str(TRAIN_DIRECTORY / "checkpoints" / "model4"))
 
     signal(SIGINT, handle_close)
     signal(SIGTERM, handle_close)

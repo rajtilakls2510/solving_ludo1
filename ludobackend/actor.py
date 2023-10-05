@@ -1,23 +1,23 @@
 import time
-
+import multiprocessing
+from signal import signal, SIGINT, SIGTERM
 import rpyc
 from ludo import Ludo, GameConfig, LudoModel
 import json
-from copy import deepcopy
 import random
-import base64
-import tensorflow as tf
 
 TRAIN_SERVER_IP = "localhost"
 TRAIN_SERVER_PORT = 18861
+EVALUATOR_PORT = 18862
 NUM_GAMES = 1
+EVALUATION_BATCH_SIZE = 512
 
 
 class PlayerAgent:
-    def __init__(self, player, game_engine, eval_network):
+
+    def __init__(self, player, game_engine):
         self.player = player
         self.game_engine = game_engine
-        self.eval_network = eval_network
 
     def get_next_move(self, available_moves, game_state):
 
@@ -34,40 +34,16 @@ class PlayerAgent:
 class Actor:
     def __init__(self):
         self.train_server_conn = None
+        self.eval_server_conn = None
+        self.evaluator_process = None
 
     def initialize_game(self):
         # TODO: To remove bias can randomize the color of the players
-        game_config = GameConfig([[LudoModel.RED],[ LudoModel.YELLOW], [LudoModel.GREEN], [LudoModel.BLUE]])
+        game_config = GameConfig([[LudoModel.RED, LudoModel.YELLOW], [LudoModel.GREEN,LudoModel.BLUE]])
 
         game_engine = Ludo(game_config)
 
         return game_config, game_engine
-
-    def pull_network_architecture(self, config):
-        """ This method sends back a dictionary of player networks
-            Return:
-                networks= {"Player 1": model, "Player 2": another model, ...}
-        """
-
-        try:
-            network_list = self.train_server_conn.root.get_nnet_list()
-            network_choices = {config.players[0].name: network_list[-1]}
-            for player in config.players[1:]: network_choices[player.name] = random.choice(network_list)
-
-            networks = {}
-            for player_name, choice in network_choices.items():
-                serialized_model = json.loads(self.train_server_conn.root.get_nnet(choice))
-                model = tf.keras.Model.from_config(serialized_model["config"])
-                params = serialized_model["params"]
-                for i in range(len(params)):
-                    params[i] = tf.io.parse_tensor(base64.b64decode(params[i]), out_type=tf.float32)
-                model.set_weights(params)
-                networks[player_name] = model
-            return networks
-
-        except Exception as e:
-            print(f"Error while pulling network architectures: {str(e)}")
-            return None
 
     def initialize_data_stores(self):
         # Initialize data stores for logging and other game-related data
@@ -84,8 +60,8 @@ class Actor:
 
         return data_store, log
 
-    def play_game(self, game_config, game_engine, network_architecture, data_store, log):
-        player_agents = [PlayerAgent(player, game_engine, network_architecture[player.name]) for player in game_config.players]
+    def play_game(self, game_config, game_engine, data_store, log):
+        player_agents = [PlayerAgent(player, game_engine) for player in game_config.players]
 
         game_engine.reset()
         start_time = time.perf_counter()
@@ -152,22 +128,44 @@ class Actor:
 
     def start(self):
         self.train_server_conn = rpyc.connect(TRAIN_SERVER_IP, TRAIN_SERVER_PORT)
+
+        from evaluator import EvaluatorMain
+        self.evaluator_process = multiprocessing.Process(target=EvaluatorMain.process_starter, args=(TRAIN_SERVER_IP, TRAIN_SERVER_PORT, EVALUATOR_PORT, EVALUATION_BATCH_SIZE), name="Evaluator")
+        self.evaluator_process.start()
+        self.eval_server_conn = rpyc.connect("localhost", EVALUATOR_PORT)
+
+        # TODO: Start thread pool
+
         game = 0
         while game < NUM_GAMES:
             game_config, game_engine = self.initialize_game()
-            network_architecture = self.pull_network_architecture(game_config)
+            self.eval_server_conn.root.on_game_start(json.dumps(game_config.get_dict()))
             data_store, log = self.initialize_data_stores()
 
-            self.play_game(game_config, game_engine, network_architecture, data_store, log)
-
+            self.play_game(game_config, game_engine, data_store, log)
+            self.eval_server_conn.root.on_game_end()
             self.send_data_to_train_server(data_store, log)
 
             game += 1
+
+        # TODO: Stop thread pool
+        self.evaluator_process.terminate()
+
+    def close(self):
+        # TODO: Stop thread pool
+        self.train_server_conn.close()
+        self.eval_server_conn.close()
+        if not self.evaluator_process:
+            self.evaluator_process.terminate()
 
 if __name__ == "__main__":
     """ Initialize some parameters and start generating games after contacting the training server """
     try:
         actor = Actor()
+
+        signal(SIGINT, actor.close)
+        signal(SIGTERM, actor.close)
+
         actor.start()
     except Exception as e:
         print(f"Couldn't connect to the Train Server: {str(e)}")
