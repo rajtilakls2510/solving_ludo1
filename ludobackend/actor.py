@@ -151,7 +151,7 @@ class Actor:
         # TODO: Stop thread pool
         self.evaluator_process.terminate()
 
-    def close(self):
+    def close(self, signal, frame):
         # TODO: Stop thread pool
         self.train_server_conn.close()
         self.eval_server_conn.close()

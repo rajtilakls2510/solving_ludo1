@@ -3,6 +3,7 @@ import json
 import os
 import threading
 import random
+import time
 import rpyc
 from rpyc.utils.helpers import classpartial
 from rpyc.utils.server import ThreadedServer
@@ -55,6 +56,7 @@ class EvaluatorService(rpyc.Service):
         all_complete = False
         while not all_complete:
             trigger_event.wait()
+            all_complete = True
             for elem in elems:
                 all_complete = all_complete and elem.is_evaluated
             trigger_event.clear()
@@ -81,32 +83,30 @@ class EvaluatorMain:
         for player in self.players:
             self.queues[player["name"]] = Queue()
         self.networks = self.pull_network_architecture(self.players)
+        print(self.networks)
 
     def pull_network_architecture(self, players):
         """ This method sends back a dictionary of player networks
             Return:
                 networks= {"Player 1": model, "Player 2": another model, ...}
         """
+        start = time.perf_counter()
+        network_list = self.train_server_conn.root.get_nnet_list()
+        network_choices = {players[0]["name"]: network_list[-1]}
+        for player in players[1:]: network_choices[player["name"]] = random.choice(network_list)
 
-        try:
-            network_list = self.train_server_conn.root.get_nnet_list()
-            network_choices = {players[0].name: network_list[-1]}
-            for player in players[1:]: network_choices[player.name] = random.choice(network_list)
+        networks = {}
+        for player_name, choice in network_choices.items():
+            serialized_model = json.loads(self.train_server_conn.root.get_nnet(choice))
+            model = tf.keras.Model.from_config(serialized_model["config"])
+            params = serialized_model["params"]
+            for i in range(len(params)):
+                params[i] = tf.io.parse_tensor(base64.b64decode(params[i]), out_type=tf.float32)
+            model.set_weights(params)
+            networks[player_name] = model
+        print(f"Pull time: {time.perf_counter() - start}")
+        return networks
 
-            networks = {}
-            for player_name, choice in network_choices.items():
-                serialized_model = json.loads(self.train_server_conn.root.get_nnet(choice))
-                model = tf.keras.Model.from_config(serialized_model["config"])
-                params = serialized_model["params"]
-                for i in range(len(params)):
-                    params[i] = tf.io.parse_tensor(base64.b64decode(params[i]), out_type=tf.float32)
-                model.set_weights(params)
-                networks[player_name] = model
-            return networks
-
-        except Exception as e:
-            print(f"Error while pulling network architectures: {str(e)}")
-            return None
 
     @tf.function
     def predict(self, model, batch):
@@ -117,6 +117,7 @@ class EvaluatorMain:
         while True:
             self.main_event.wait()
             self.evaluation_complete_event.clear()
+            print("\rE Running...", end="")
             for player in self.players:
                 queue = self.queues[player["name"]]
                 if queue.qsize() > 0:
@@ -126,7 +127,7 @@ class EvaluatorMain:
                         elems.append(queue.get())
                         i += 1
 
-                    results = self.predict(self.networks[player["name"]], tf.stack(elems))
+                    results = self.predict(self.networks[player["name"]], tf.stack([elem.state_pair for elem in elems]))
 
                     triggers_to_be_sent = []
                     for elem, result in zip(elems, results):
@@ -142,7 +143,7 @@ class EvaluatorMain:
     @classmethod
     def process_starter(cls, train_server_ip, train_server_port, evaluator_port, evaluation_batch_size):
         print(f"Evaluator Process started PID: {os.getpid()}")
-
+        tf.config.experimental.set_memory_growth(tf.config.list_physical_devices("GPU")[0], enable=True)
         signal(SIGINT, EvaluatorMain.process_terminator)
         signal(SIGTERM, EvaluatorMain.process_terminator)
 
