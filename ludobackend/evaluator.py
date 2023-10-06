@@ -22,12 +22,11 @@ class QElem:
         self.batch_start = self.batch_end = 0
 
     def is_evaluated(self):
-        # return self.eval_end == self.state_pairs.shape[0]
-        return True
+        return self.eval_end == self.state_pairs.shape[0]
 
     def set_result(self, result):
-        # elem_result = tf.squeeze(result[self.batch_start: self.batch_end])
-        self.result = self.result #tf.pad(elem_result, [[self.eval_start, self.total - self.eval_end]])
+        elem_result = tf.reshape(result[self.batch_start: self.batch_end], shape=(-1, ))
+        self.result = self.result + tf.pad(elem_result, [[self.eval_start, self.total - self.eval_end]])
 
 
 @rpyc.service
@@ -57,17 +56,17 @@ class EvaluatorService(rpyc.Service):
                 - results: serialized tensor of shape (num_pairs,)
         """
         trigger_event = threading.Event()
-        # elem = QElem(tf.io.parse_tensor(base64.b64decode(state_pairs), out_type=tf.float32), trigger_event)
-        # self.eval_object.queues[player_name].put(elem)
+        elem = QElem(tf.io.parse_tensor(base64.b64decode(state_pairs), out_type=tf.float32), trigger_event)
+        self.eval_object.queues[player_name].put(elem)
 
-        # all_complete = False
-        # while not all_complete:
-        #     trigger_event.wait()
-        #     all_complete = elem.is_evaluated()
-        #     trigger_event.clear()
+        all_complete = False
+        while not all_complete:
+            trigger_event.wait()
+            all_complete = elem.is_evaluated()
+            trigger_event.clear()
 
-        # return base64.b64encode(
-        #     tf.io.serialize_tensor(elem.result).numpy()).decode('ascii')
+        return base64.b64encode(
+            tf.io.serialize_tensor(elem.result).numpy()).decode('ascii')
 
 
 class EvaluatorMain:
@@ -132,30 +131,29 @@ class EvaluatorMain:
                         elem = queue.get()
                         if elem not in elems:
                             elems.append(elem)
-                    #     batch_start = i
-                    #     eval_start = elem.eval_end
-                    #     if batch_start + (elem.total - elem.eval_end) > self.batch_size:
-                    #         batch_end = self.batch_size
-                    #         queue.put(elem)
-                    #     else:
-                    #         batch_end = batch_start + (elem.total - elem.eval_end)
-                    #     eval_end = elem.eval_end + batch_end - batch_start
-                    #
-                    #     elem.batch_start, elem.batch_end, elem.eval_start, elem.eval_end = batch_start, batch_end, eval_start, eval_end
-                    #     # state_pair_batch.append(elem.state_pairs[elem.eval_start : elem.eval_end])
-                    #     # state_pair_batch.append(elem.eval_end - elem.eval_start)
-                    #     i = batch_end
+                        batch_start = i
+                        eval_start = elem.eval_end
+                        if batch_start + (elem.total - elem.eval_end) > self.batch_size:
+                            batch_end = self.batch_size
+                            queue.put(elem)
+                        else:
+                            batch_end = batch_start + (elem.total - elem.eval_end)
+                        eval_end = elem.eval_end + batch_end - batch_start
 
-                    # results = self.predict(self.networks[player["name"]], tf.zeros(shape=(sum([elem.shape[0] for elem in state_pair_batch]), 59, 42)))#tf.concat(state_pair_batch, axis=0))
-                    # results = tf.zeros(shape=(sum([elem for elem in state_pair_batch]),))
+                        elem.batch_start, elem.batch_end, elem.eval_start, elem.eval_end = batch_start, batch_end, eval_start, eval_end
+                        state_pair_batch.append(elem.state_pairs[elem.eval_start : elem.eval_end])
+                        i = batch_end
+
+                    results = self.predict(self.networks[player["name"]], tf.concat(state_pair_batch, axis=0))
                     triggers_to_be_sent = []
                     for elem in elems:
-                        # elem.set_result(results)
+                        elem.set_result(results)
                         if elem.trigger_to_check_all_complete not in triggers_to_be_sent:
                             triggers_to_be_sent.append(elem.trigger_to_check_all_complete)
 
                     for trigger in triggers_to_be_sent:
                         trigger.set()
+            time.sleep(0.001)
             self.evaluation_complete_event.set()
 
     @classmethod

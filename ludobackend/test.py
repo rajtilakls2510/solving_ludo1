@@ -1,7 +1,6 @@
 import base64
 from evaluator import EvaluatorMain
 import multiprocessing
-import sys
 import rpyc
 from ludo import Ludo, LudoModel, GameConfig
 import json
@@ -12,15 +11,14 @@ from concurrent.futures import ThreadPoolExecutor
 TRAIN_SERVER_IP = "localhost"
 TRAIN_SERVER_PORT = 18861
 EVALUATOR_PORT = 18862
-EVALUATION_BATCH_SIZE = 128
+EVALUATION_BATCH_SIZE = 2048
 
 def send_for_eval(j):
     start = time.perf_counter()
     serialized_tensor = base64.b64encode(
-        tf.io.serialize_tensor(tf.zeros(shape=(8, 59, 42))).numpy()).decode('ascii')
-    print(sys.getsizeof(serialized_tensor))
-    # results = eval_server_conn.root.evaluate(game_config.players[ j%2 ].name, serialized_tensor)
-    # results = tf.io.parse_tensor(base64.b64decode(results), out_type=tf.float32)
+        tf.io.serialize_tensor(tf.zeros(shape=(64, 59, 42))).numpy()).decode('ascii')
+    results = eval_server_conn.root.evaluate(game_config.players[ j%2 ].name, serialized_tensor)
+    results = tf.io.parse_tensor(base64.b64decode(results), out_type=tf.float32)
     print(f"J={j}, Eval time: {time.perf_counter() - start}")
 
 if __name__=="__main__":
@@ -37,7 +35,7 @@ if __name__=="__main__":
 
         eval_server_conn.root.on_game_start(json.dumps(game_config.get_dict()))
 
-        with ThreadPoolExecutor(max_workers=14) as executor:
+        with ThreadPoolExecutor(max_workers=10) as executor:
             for j in range(500):
                 executor.submit(send_for_eval, j)
 
