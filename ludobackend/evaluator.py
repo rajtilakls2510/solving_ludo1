@@ -13,11 +13,21 @@ from queue import Queue
 
 
 class QElem:
-    def __init__(self, state_pair, event):
-        self.state_pair = state_pair
-        self.result = None
-        self.is_evaluated = False
+    def __init__(self, state_pairs, event):
+        self.state_pairs = state_pairs
+        self.result = tf.zeros(shape=(self.state_pairs.shape[0],))
         self.trigger_to_check_all_complete = event
+        self.total = self.state_pairs.shape[0]
+        self.eval_start = self.eval_end = 0
+        self.batch_start = self.batch_end = 0
+
+    def is_evaluated(self):
+        # return self.eval_end == self.state_pairs.shape[0]
+        return True
+
+    def set_result(self, result):
+        # elem_result = tf.squeeze(result[self.batch_start: self.batch_end])
+        self.result = self.result #tf.pad(elem_result, [[self.eval_start, self.total - self.eval_end]])
 
 
 @rpyc.service
@@ -47,22 +57,17 @@ class EvaluatorService(rpyc.Service):
                 - results: serialized tensor of shape (num_pairs,)
         """
         trigger_event = threading.Event()
-        elems = []
-        for state_pair in tf.io.parse_tensor(base64.b64decode(state_pairs), out_type=tf.float32):
-            elems.append(QElem(state_pair, trigger_event))
-        for elem in elems:
-            self.eval_object.queues[player_name].put(elem)
+        # elem = QElem(tf.io.parse_tensor(base64.b64decode(state_pairs), out_type=tf.float32), trigger_event)
+        # self.eval_object.queues[player_name].put(elem)
 
-        all_complete = False
-        while not all_complete:
-            trigger_event.wait()
-            all_complete = True
-            for elem in elems:
-                all_complete = all_complete and elem.is_evaluated
-            trigger_event.clear()
+        # all_complete = False
+        # while not all_complete:
+        #     trigger_event.wait()
+        #     all_complete = elem.is_evaluated()
+        #     trigger_event.clear()
 
-        return base64.b64encode(
-            tf.io.serialize_tensor(tf.stack([elem.result for elem in elems])).numpy()).decode('ascii')
+        # return base64.b64encode(
+        #     tf.io.serialize_tensor(elem.result).numpy()).decode('ascii')
 
 
 class EvaluatorMain:
@@ -117,22 +122,35 @@ class EvaluatorMain:
         while True:
             self.main_event.wait()
             self.evaluation_complete_event.clear()
-            print("\rE Running...", end="")
             for player in self.players:
                 queue = self.queues[player["name"]]
                 if queue.qsize() > 0:
                     i = 0
+                    state_pair_batch = []
                     elems = []
                     while queue.qsize() > 0 and i < self.batch_size:
-                        elems.append(queue.get())
-                        i += 1
+                        elem = queue.get()
+                        if elem not in elems:
+                            elems.append(elem)
+                    #     batch_start = i
+                    #     eval_start = elem.eval_end
+                    #     if batch_start + (elem.total - elem.eval_end) > self.batch_size:
+                    #         batch_end = self.batch_size
+                    #         queue.put(elem)
+                    #     else:
+                    #         batch_end = batch_start + (elem.total - elem.eval_end)
+                    #     eval_end = elem.eval_end + batch_end - batch_start
+                    #
+                    #     elem.batch_start, elem.batch_end, elem.eval_start, elem.eval_end = batch_start, batch_end, eval_start, eval_end
+                    #     # state_pair_batch.append(elem.state_pairs[elem.eval_start : elem.eval_end])
+                    #     # state_pair_batch.append(elem.eval_end - elem.eval_start)
+                    #     i = batch_end
 
-                    results = self.predict(self.networks[player["name"]], tf.stack([elem.state_pair for elem in elems]))
-
+                    # results = self.predict(self.networks[player["name"]], tf.zeros(shape=(sum([elem.shape[0] for elem in state_pair_batch]), 59, 42)))#tf.concat(state_pair_batch, axis=0))
+                    # results = tf.zeros(shape=(sum([elem for elem in state_pair_batch]),))
                     triggers_to_be_sent = []
-                    for elem, result in zip(elems, results):
-                        elem.result = result[0]
-                        elem.is_evaluated = True
+                    for elem in elems:
+                        # elem.set_result(results)
                         if elem.trigger_to_check_all_complete not in triggers_to_be_sent:
                             triggers_to_be_sent.append(elem.trigger_to_check_all_complete)
 

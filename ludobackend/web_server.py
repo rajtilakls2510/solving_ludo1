@@ -28,7 +28,6 @@ def get_state_jsonable_dict():
     pawns = {}
     positions = []
     for player in ludo.model.config.players:
-        # pawns.update(ludo.state[player.name]["single_pawn_pos"])
         for pawn_id, pos in ludo.state[player.name]["single_pawn_pos"].items():
             pawns[pawn_id] = {"colour": ludo.model.get_colour_from_id(pawn_id), "blocked": False}
             positions.append({"pawn_id": pawn_id, "pos_id": pos})
@@ -78,12 +77,6 @@ def get_log_file():
 @app.route("/state", methods=["GET"])
 def get_state():
     new_state = get_state_jsonable_dict()
-    # path = Path("runs") / "run1" / "logs"/ "2023_Oct_02_17_06_41_575516.json"
-    # with open(path, mode="r", encoding="utf-8") as f:
-    #     t = json.loads(f.read())
-    # import random
-    # new_state = random.choice(t["game"])["game_state"]
-
     return jsonify(new_state), 200
 
 

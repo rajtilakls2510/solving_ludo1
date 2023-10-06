@@ -65,10 +65,8 @@ class Actor:
 
         game_engine.reset()
         start_time = time.perf_counter()
-        # i = 0
+
         while not game_engine.state["game_over"]:
-            # print(f"\rMove: {i}", end="")
-            # i += 1
             # Selecting the currently active player
             current_agent = player_agents[game_engine.state["current_player"]]
 
