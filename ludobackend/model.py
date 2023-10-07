@@ -51,7 +51,7 @@ def nn_model(input_shape):
 
 
 # if __name__ == "__main__":
-#     input_shape = (59,42)
+#     input_shape = (59,21)
 #     model = nn_model(input_shape)
 
 #     model.summary()

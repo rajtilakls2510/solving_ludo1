@@ -130,7 +130,7 @@ def start_server():
 if __name__ == "__main__":
     from rpyc.utils.server import ThreadedServer
     
-    # input_shape = (59,42)
+    # input_shape = (59,21)
     #
     # model = nn_model(input_shape)
     #

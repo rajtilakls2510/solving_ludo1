@@ -147,7 +147,6 @@ class Actor:
             game += 1
 
         # TODO: Stop thread pool
-        self.evaluator_process.terminate()
 
     def close(self, signal, frame):
         # TODO: Stop thread pool
@@ -165,5 +164,6 @@ if __name__ == "__main__":
         signal(SIGTERM, actor.close)
 
         actor.start()
+        actor.close(0,0)
     except Exception as e:
         print(f"Couldn't connect to the Train Server: {str(e)}")
