@@ -10,13 +10,10 @@ from pathlib import Path
 import os
 from signal import signal, SIGINT, SIGTERM
 import datetime
-
 import rpyc
 import tensorflow as tf
 import numpy as np
-
 from queue import Queue
-
 from rpyc import ThreadedServer
 
 tf.config.experimental.set_memory_growth(tf.config.list_physical_devices("GPU")[0], enable=True)
@@ -27,8 +24,8 @@ DIRECTORY = Path("runs")
 TRAIN_DIRECTORY = DIRECTORY / "run1"
 MIN_STORED_GAMES = 1
 BATCH_SIZE = 512
-NUM_FILES_TO_FETCH_BATCH = 2
-MIN_NUM_JOBS = 4
+NUM_FILES_TO_FETCH_BATCH = 8
+MIN_NUM_JOBS = 14
 NUM_BATCHES = 50_000
 SAVE_EVERY_BATCHES = 100
 PREFETCHER_PORT = 18863
@@ -57,9 +54,9 @@ class DataLoaderService(rpyc.Service):
 class DataLoader:
     data_loader_object = None
 
-    def __init__(self, min_num_jobs_in_queue=4):
-        self.server = None
-        self.executor = ThreadPoolExecutor(max_workers=min_num_jobs_in_queue) # TODO: experiment with this variable
+    def __init__(self, min_num_jobs_in_queue=4, server=None):
+        self.server = server
+        self.executor = ThreadPoolExecutor(max_workers=min_num_jobs_in_queue)
         self.prefetch_queue = Queue()
         self.num_jobs = min_num_jobs_in_queue
         self.experience_store_path = TRAIN_DIRECTORY / "experience_store"
@@ -72,11 +69,11 @@ class DataLoader:
 
         signal(SIGINT, DataLoader.process_terminator)
         signal(SIGTERM, DataLoader.process_terminator)
-
-        DataLoader.data_loader_object = DataLoader(min_num_jobs_in_queue)
-        DataLoader.data_loader_object.server = ThreadedServer(DataLoaderService, port=prefetcher_port)
-        t1 = threading.Thread(target=DataLoader.data_loader_object.server.start)
+        server = ThreadedServer(DataLoaderService, port=prefetcher_port)
+        t1 = threading.Thread(target=server.start)
         t1.start()
+
+        DataLoader.data_loader_object = DataLoader(min_num_jobs_in_queue, server)
 
         # Keeping the process alive
         event = threading.Event()
@@ -115,29 +112,26 @@ class DataLoader:
                 chosen_state = np.random.randint(low=0, high=num_states)
                 state = np.array(game_data["states"][chosen_state])
 
+                # Applying turn augmentation
+                player = random.choice(np.arange(4) + 1)
+                state[:, -1] = player
+
                 # Applying pawn augmentation
                 permutation_array = np.eye(N=21)
-                permutation_array[:4, :4] = self.get_pawn_permutation() # Red
-                permutation_array[4:8, 4:8] = self.get_pawn_permutation() # Green
-                permutation_array[8:12, 8:12] = self.get_pawn_permutation() # Yellow
-                permutation_array[12:16, 12:16] = self.get_pawn_permutation() # Blue
+                permutation_array[:4, :4] = self.get_pawn_permutation()  # Red
+                permutation_array[4:8, 4:8] = self.get_pawn_permutation()  # Green
+                permutation_array[8:12, 8:12] = self.get_pawn_permutation()  # Yellow
+                permutation_array[12:16, 12:16] = self.get_pawn_permutation()  # Blue
                 state = state @ permutation_array
-
-                # Applying turn augmentation
-                player = random.choice(np.arange(4)+1)
-                state[:, -1] = player
 
                 reward = [1] if state[0, -1] == winner_player else [-1]
 
                 states.append(state)
                 rewards.append(reward)
         self.prefetch_queue.put((tf.convert_to_tensor(states, dtype=tf.float32), tf.convert_to_tensor(rewards, dtype=tf.float32)))
-        del game_data
-        gc.collect()
-
 
     def get_batch(self):
-        for _ in range(self.num_jobs - self.prefetch_queue.qsize()):
+        for _ in range(min(4, self.num_jobs - self.prefetch_queue.qsize())):
             self.executor.submit(self.fetch)
         return self.prefetch_queue.get()
 
