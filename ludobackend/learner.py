@@ -1,6 +1,7 @@
 import json
 import random
 import gc
+import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import os
@@ -19,9 +20,9 @@ TRAIN_DIRECTORY = DIRECTORY / "run1"
 MIN_STORED_GAMES = 1
 BATCH_SIZE = 512
 NUM_FILES_TO_FETCH_BATCH = 2
-MIN_NUM_JOBS = 4
+MIN_NUM_JOBS = 8
 NUM_BATCHES = 50_000
-SAVE_EVERY_BATCHES = 10_000
+SAVE_EVERY_BATCHES = 100
 
 
 def check_enough_games():
@@ -49,8 +50,9 @@ class DataLoader:
     def fetch(self):
         states = []
         rewards = []
-        for _ in range(NUM_FILES_TO_FETCH_BATCH):
-            file = random.choice(os.listdir(self.experience_store_path))
+        files = random.choices(os.listdir(self.experience_store_path), k=NUM_FILES_TO_FETCH_BATCH)
+        for file in files:
+            # file = random.choice(os.listdir(self.experience_store_path))
             try:
                 with open(self.experience_store_path / file, mode="r", encoding="utf-8") as f:
                     game_data = json.loads(f.read())
@@ -87,7 +89,7 @@ class DataLoader:
         gc.collect()
 
     def get_batch(self):
-        for _ in range(self.num_jobs - self.prefetch_queue.qsize()):
+        for _ in range(2):
             self.executor.submit(self.fetch)
         return self.prefetch_queue.get()
 
@@ -122,12 +124,15 @@ class Learner:
         self.loss = tf.keras.losses.MeanSquaredError()
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=0.001) # TODO: Figure out a learning rate schedule
         self.data_loader.fetch()
+        start = time.perf_counter()
         for i in range(NUM_BATCHES):
             print(f"Batch: {i}. QSize: {self.data_loader.prefetch_queue.qsize()}")
             x_batch, y_batch = self.data_loader.get_batch()
             l = self.train_step(x_batch, y_batch)
             # TODO: Log loss for training
             if (i+1) % SAVE_EVERY_BATCHES == 0:
+                print(f"Time: {time.perf_counter() - start}")
+                start = time.perf_counter()
                 self.save_model(self.model)
 
     def save_model(self, model):
