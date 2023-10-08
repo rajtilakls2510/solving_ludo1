@@ -24,10 +24,10 @@ DIRECTORY = Path("runs")
 TRAIN_DIRECTORY = DIRECTORY / "run1"
 MIN_STORED_GAMES = 1
 BATCH_SIZE = 512
-NUM_FILES_TO_FETCH_BATCH = 8
-MIN_NUM_JOBS = 14
+NUM_FILES_TO_FETCH_BATCH = 2
+MIN_NUM_JOBS = 12
 NUM_BATCHES = 50_000
-SAVE_EVERY_BATCHES = 100
+SAVE_EVERY_BATCHES = 10_000
 PREFETCHER_PORT = 18863
 
 
@@ -76,8 +76,13 @@ class DataLoader:
         DataLoader.data_loader_object = DataLoader(min_num_jobs_in_queue, server)
 
         # Keeping the process alive
-        event = threading.Event()
-        event.wait()
+        DataLoader.data_loader_object.keep_fetching()
+
+    def keep_fetching(self):
+        while True:
+            for _ in range(self.num_jobs - self.executor._work_queue.qsize()):
+                self.executor.submit(self.fetch)
+            time.sleep(0.001)
 
     @classmethod
     def process_terminator(cls, signum, frame):
@@ -131,8 +136,6 @@ class DataLoader:
         self.prefetch_queue.put((tf.convert_to_tensor(states, dtype=tf.float32), tf.convert_to_tensor(rewards, dtype=tf.float32)))
 
     def get_batch(self):
-        for _ in range(min(4, self.num_jobs - self.prefetch_queue.qsize())):
-            self.executor.submit(self.fetch)
         return self.prefetch_queue.get()
 
     def close(self):
@@ -198,8 +201,8 @@ class Learner:
         model.save(str(TRAIN_DIRECTORY / "checkpoints" / datetime.datetime.now().strftime("%Y_%b_%d_%H_%M_%S_%f")))
 
     def close(self, signal, frame):
-        if self.model:
-            self.save_model(self.model)
+        # if self.model:
+        #     self.save_model(self.model)
         self.data_loader_conn.close()
         if self.data_loader_process:
             self.data_loader_process.terminate()
