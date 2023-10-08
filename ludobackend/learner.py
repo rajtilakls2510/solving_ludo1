@@ -1,15 +1,24 @@
+import base64
 import json
+import multiprocessing
 import random
 import gc
+import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import os
 from signal import signal, SIGINT, SIGTERM
 import datetime
+
+import rpyc
 import tensorflow as tf
 import numpy as np
 
 from queue import Queue
+
+from rpyc import ThreadedServer
+
 tf.config.experimental.set_memory_growth(tf.config.list_physical_devices("GPU")[0], enable=True)
 
 """ This file contains only stuff related to the learner """
@@ -21,23 +30,63 @@ BATCH_SIZE = 512
 NUM_FILES_TO_FETCH_BATCH = 2
 MIN_NUM_JOBS = 4
 NUM_BATCHES = 50_000
-SAVE_EVERY_BATCHES = 10_000
+SAVE_EVERY_BATCHES = 100
+PREFETCHER_PORT = 18863
 
 
-def check_enough_games():
-    files = os.listdir(TRAIN_DIRECTORY / "experience_store")
-    return len(files) >= MIN_STORED_GAMES
+
+# ========================== Pre-fetcher Process =======================================
+
+@rpyc.service
+class DataLoaderService(rpyc.Service):
+
+    @rpyc.exposed
+    def get_batch(self):
+        states, rewards = DataLoader.data_loader_object.get_batch()
+        states = base64.b64encode(
+            tf.io.serialize_tensor(states).numpy()).decode('ascii')
+        rewards = base64.b64encode(
+            tf.io.serialize_tensor(rewards).numpy()).decode('ascii')
+        return json.dumps([states, rewards])
+
+    @rpyc.exposed
+    def get_qsize(self):
+        return DataLoader.data_loader_object.prefetch_queue.qsize()
 
 
 class DataLoader:
+    data_loader_object = None
 
     def __init__(self, min_num_jobs_in_queue=4):
-        self.executor = ThreadPoolExecutor(max_workers=MIN_NUM_JOBS)
+        self.server = None
+        self.executor = ThreadPoolExecutor(max_workers=min_num_jobs_in_queue) # TODO: experiment with this variable
         self.prefetch_queue = Queue()
         self.num_jobs = min_num_jobs_in_queue
         self.experience_store_path = TRAIN_DIRECTORY / "experience_store"
         for _ in range(self.num_jobs):
             self.executor.submit(self.fetch)
+
+    @classmethod
+    def process_starter(cls, prefetcher_port, min_num_jobs_in_queue):
+        print(f"Pre-fetcher Process started PID: {os.getpid()}")
+
+        signal(SIGINT, DataLoader.process_terminator)
+        signal(SIGTERM, DataLoader.process_terminator)
+
+        DataLoader.data_loader_object = DataLoader(min_num_jobs_in_queue)
+        DataLoader.data_loader_object.server = ThreadedServer(DataLoaderService, port=prefetcher_port)
+        t1 = threading.Thread(target=DataLoader.data_loader_object.server.start)
+        t1.start()
+
+        # Keeping the process alive
+        event = threading.Event()
+        event.wait()
+
+    @classmethod
+    def process_terminator(cls, signum, frame):
+        if DataLoader.data_loader_object:
+            DataLoader.data_loader_object.close()
+        exit(0)
 
     def get_pawn_permutation(self):
         perm = np.zeros(shape=(4, 4))
@@ -49,8 +98,8 @@ class DataLoader:
     def fetch(self):
         states = []
         rewards = []
-        for _ in range(NUM_FILES_TO_FETCH_BATCH):
-            file = random.choice(os.listdir(self.experience_store_path))
+        files = random.choices(os.listdir(self.experience_store_path), k=NUM_FILES_TO_FETCH_BATCH)
+        for file in files:
             try:
                 with open(self.experience_store_path / file, mode="r", encoding="utf-8") as f:
                     game_data = json.loads(f.read())
@@ -86,13 +135,24 @@ class DataLoader:
         del game_data
         gc.collect()
 
+
     def get_batch(self):
         for _ in range(self.num_jobs - self.prefetch_queue.qsize()):
             self.executor.submit(self.fetch)
         return self.prefetch_queue.get()
 
     def close(self):
+        if self.server:
+            self.server.close()
         self.executor.shutdown(wait=True)
+
+
+# ========================== Learner Main Process =======================================
+
+
+def check_enough_games():
+    files = os.listdir(TRAIN_DIRECTORY / "experience_store")
+    return len(files) >= MIN_STORED_GAMES
 
 
 class Learner:
@@ -117,17 +177,27 @@ class Learner:
         return l
 
     def start(self):
-        self.data_loader = DataLoader(min_num_jobs_in_queue=MIN_NUM_JOBS)
+
+        # Creating a background process for Data Loading
+        self.data_loader_process = multiprocessing.Process(target=DataLoader.process_starter, args=(PREFETCHER_PORT, MIN_NUM_JOBS))
+        self.data_loader_process.start()
+        self.data_loader_conn = rpyc.connect("localhost", PREFETCHER_PORT)
+
         self.load_latest_checkpoint()
         self.loss = tf.keras.losses.MeanSquaredError()
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=0.001) # TODO: Figure out a learning rate schedule
-        self.data_loader.fetch()
+        start = time.perf_counter()
         for i in range(NUM_BATCHES):
-            print(f"Batch: {i}. QSize: {self.data_loader.prefetch_queue.qsize()}")
-            x_batch, y_batch = self.data_loader.get_batch()
+            print(f"Batch: {i}. QSize: {self.data_loader_conn.root.get_qsize()}")
+            x_batch, y_batch = json.loads(self.data_loader_conn.root.get_batch())
+            x_batch = tf.io.parse_tensor(base64.b64decode(x_batch), out_type=tf.float32)
+            y_batch = tf.io.parse_tensor(base64.b64decode(y_batch), out_type=tf.float32)
+            # x_batch, y_batch = self.data_loader_conn.root.get_batch()
             l = self.train_step(x_batch, y_batch)
             # TODO: Log loss for training
             if (i+1) % SAVE_EVERY_BATCHES == 0:
+                print(f"Time: {time.perf_counter() - start}")
+                start = time.perf_counter()
                 self.save_model(self.model)
 
     def save_model(self, model):
@@ -136,7 +206,9 @@ class Learner:
     def close(self, signal, frame):
         if self.model:
             self.save_model(self.model)
-        self.data_loader.close()
+        self.data_loader_conn.close()
+        if self.data_loader_process:
+            self.data_loader_process.terminate()
 
 if __name__ == "__main__":
     if check_enough_games():
