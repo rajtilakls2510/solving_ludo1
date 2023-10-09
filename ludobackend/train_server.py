@@ -7,6 +7,7 @@ import tensorflow as tf
 tf.config.experimental.set_memory_growth(tf.config.list_physical_devices("GPU")[0], True)
 from pathlib import Path
 import os
+import time
 import datetime
 import shutil
 from model import nn_model
@@ -14,11 +15,11 @@ from model import nn_model
 """ This file contains stuff related to the train server which serves the actor """
 
 server = None
-TRAIN_SERVER_PORT = 18861
+TRAIN_SERVER_PORT = 18861   # The port at which the train server is expected to run at
 DIRECTORY = Path("runs")
 TRAIN_DIRECTORY = DIRECTORY / "run1"
-MAX_CHECKPOINTS = 2
-MAX_EXP_STORE_GAMES = 2
+MAX_CHECKPOINTS = 2     # Maximum number of checkpoints that should be stored
+MAX_EXP_STORE_GAMES = 2     # Maximum number of games to store in experience store
 
 """ Hierarchy of store 
 - runs/
@@ -33,6 +34,7 @@ MAX_EXP_STORE_GAMES = 2
 def handle_close(signalnum, frame):
     server.close()
     print("Train Server Stopped")
+    exit(0)
 
 
 @rpyc.service
@@ -143,6 +145,10 @@ if __name__ == "__main__":
     signal(SIGTERM, handle_close)
     threading.Thread(target=start_server).start()
     print("Train Server Started")
+
+    # You have to keep the main process alive to catch signals
+    while True:
+        time.sleep(1)
 
 
 

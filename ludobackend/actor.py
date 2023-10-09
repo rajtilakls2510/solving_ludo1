@@ -127,11 +127,20 @@ class Actor:
     def start(self):
         self.train_server_conn = rpyc.connect(TRAIN_SERVER_IP, TRAIN_SERVER_PORT)
 
+        # Starting the Evaluator process in the background which evaluates the states in MCTS
         from evaluator import EvaluatorMain
         self.evaluator_process = multiprocessing.Process(target=EvaluatorMain.process_starter, args=(TRAIN_SERVER_IP, TRAIN_SERVER_PORT, EVALUATOR_PORT, EVALUATION_BATCH_SIZE), name="Evaluator")
         self.evaluator_process.start()
-        self.eval_server_conn = rpyc.connect("localhost", EVALUATOR_PORT)
 
+        # Connecting to the evaluator to avail its APIs
+        connected = False
+        while not connected:
+            try:
+                print("Trying to connect to Evaluator...")
+                self.eval_server_conn = rpyc.connect("localhost", EVALUATOR_PORT)
+                connected = True
+            except:
+                connected = False
         # TODO: Start thread pool
 
         game = 0
@@ -150,10 +159,13 @@ class Actor:
 
     def close(self, signal, frame):
         # TODO: Stop thread pool
-        self.train_server_conn.close()
-        self.eval_server_conn.close()
-        if not self.evaluator_process:
+        if self.train_server_conn:
+            self.train_server_conn.close()
+        if self.eval_server_conn:
+            self.eval_server_conn.close()
+        if self.evaluator_process:
             self.evaluator_process.terminate()
+        exit(0)
 
 if __name__ == "__main__":
     """ Initialize some parameters and start generating games after contacting the training server """

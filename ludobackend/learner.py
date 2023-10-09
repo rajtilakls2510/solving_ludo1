@@ -22,13 +22,13 @@ tf.config.experimental.set_memory_growth(tf.config.list_physical_devices("GPU")[
 
 DIRECTORY = Path("runs")
 TRAIN_DIRECTORY = DIRECTORY / "run1"
-MIN_STORED_GAMES = 1
+MIN_STORED_GAMES = 1   # The minimum number of stored games in experience store before which training can begin
 BATCH_SIZE = 512
-NUM_FILES_TO_FETCH_BATCH = 2
-MIN_NUM_JOBS = 12
-NUM_BATCHES = 50_000
-SAVE_EVERY_BATCHES = 10_000
-PREFETCHER_PORT = 18863
+NUM_FILES_TO_FETCH_BATCH = 2    # The number of files that need to be loaded to create one mini-batch.
+MIN_NUM_JOBS = 12   # The recommended number of pre-fetched batches that should be in the queue when the learner consumes batches. Also, this is the number of threads in the ThreadPoolExecutor.
+NUM_BATCHES = 50_000    # The total number of mini-batches to train on
+SAVE_EVERY_BATCHES = 10_000     # Number of mini-batches of training before saving a checkpoint
+PREFETCHER_PORT = 18863     # The port at which the Data Loader Server will run
 
 
 
@@ -36,9 +36,11 @@ PREFETCHER_PORT = 18863
 
 @rpyc.service
 class DataLoaderService(rpyc.Service):
+    """This class serves the learner with the mini-batches and other requirements to control the data loader"""
 
     @rpyc.exposed
     def get_batch(self):
+        """This function gets one mini-batch from the queue, serializes it and sends it to learner"""
         states, rewards = DataLoader.data_loader_object.get_batch()
         states = base64.b64encode(
             tf.io.serialize_tensor(states).numpy()).decode('ascii')
@@ -48,18 +50,27 @@ class DataLoaderService(rpyc.Service):
 
     @rpyc.exposed
     def get_qsize(self):
+        """This functions returns the current queue size of the pre-fetch queue. If the queue size is zero, it means that the pre-fetcher is unable to push batches fast enough"""
         return DataLoader.data_loader_object.prefetch_queue.qsize()
 
 
 class DataLoader:
+    """ This is the main data loader class which loads mini-batches and pushes them to a queue whose contents are to be consumed by the learner """
+
     data_loader_object = None
 
     def __init__(self, min_num_jobs_in_queue=4, server=None):
         self.server = server
+
+        # Initializing the thread pool executor which will handle fetching of batches from game files
         self.executor = ThreadPoolExecutor(max_workers=min_num_jobs_in_queue)
+
+        # Pre-fetch queue stores all the batches that have been pre-fetched
         self.prefetch_queue = Queue()
         self.num_jobs = min_num_jobs_in_queue
         self.experience_store_path = TRAIN_DIRECTORY / "experience_store"
+
+        # Adding some fetch jobs to fill the queue while the learner initializes it's training process
         for _ in range(self.num_jobs):
             self.executor.submit(self.fetch)
 
@@ -69,17 +80,20 @@ class DataLoader:
 
         signal(SIGINT, DataLoader.process_terminator)
         signal(SIGTERM, DataLoader.process_terminator)
+
+        # Starting Data Loader server to server the requests from Main learner process
         server = ThreadedServer(DataLoaderService, port=prefetcher_port)
         t1 = threading.Thread(target=server.start)
         t1.start()
 
         DataLoader.data_loader_object = DataLoader(min_num_jobs_in_queue, server)
 
-        # Keeping the process alive
+        # Continuously fetching batches from secondary storage and pushing it to pre-fetched queue
         DataLoader.data_loader_object.keep_fetching()
 
     def keep_fetching(self):
         while True:
+            # Adding fetch jobs to the thread pool if there aren't enough jobs in queue
             for _ in range(self.num_jobs - self.executor._work_queue.qsize()):
                 self.executor.submit(self.fetch)
             time.sleep(0.001)
@@ -91,6 +105,7 @@ class DataLoader:
         exit(0)
 
     def get_pawn_permutation(self):
+        # This function returns the permutation matrix for one colour of pawns
         perm = np.zeros(shape=(4, 4))
         permuted_indices = np.random.permutation(4)
         for i in range(4):
@@ -98,10 +113,17 @@ class DataLoader:
         return perm
 
     def fetch(self):
+        """ This function selects some files and fetches one mini-batch from those files and pushes the batch to the pre-fetch queue"""
         states = []
         rewards = []
+
+        # Selecting some files randomly
         files = random.choices(os.listdir(self.experience_store_path), k=NUM_FILES_TO_FETCH_BATCH)
+
+        # For every selected file, fetch part of the batch
         for file in files:
+
+            # Load the whole file
             try:
                 with open(self.experience_store_path / file, mode="r", encoding="utf-8") as f:
                     game_data = json.loads(f.read())
@@ -111,17 +133,21 @@ class DataLoader:
                 with open(self.experience_store_path / file, mode="r", encoding="utf-8") as f:
                     game_data = json.loads(f.read())
 
+            # Find who won
             winner_player = game_data["player_won"]
             num_states = len(game_data["states"])
+
+            # BATCH_SIZE // NUM_FILES_TO_FETCH_BATCH number of states must be selected
             for _ in range(BATCH_SIZE // NUM_FILES_TO_FETCH_BATCH):
+                # Choose one state
                 chosen_state = np.random.randint(low=0, high=num_states)
                 state = np.array(game_data["states"][chosen_state])
 
-                # Applying turn augmentation
+                # Apply turn augmentation
                 player = random.choice(np.arange(4) + 1)
                 state[:, -1] = player
 
-                # Applying pawn augmentation
+                # Apply pawn augmentation
                 permutation_array = np.eye(N=21)
                 permutation_array[:4, :4] = self.get_pawn_permutation()  # Red
                 permutation_array[4:8, 4:8] = self.get_pawn_permutation()  # Green
@@ -129,10 +155,12 @@ class DataLoader:
                 permutation_array[12:16, 12:16] = self.get_pawn_permutation()  # Blue
                 state = state @ permutation_array
 
+                # Select the appropriate reward based on who won
                 reward = [1] if state[0, -1] == winner_player else [-1]
 
                 states.append(state)
                 rewards.append(reward)
+        # Push the batch to the pre-fetch queue
         self.prefetch_queue.put((tf.convert_to_tensor(states, dtype=tf.float32), tf.convert_to_tensor(rewards, dtype=tf.float32)))
 
     def get_batch(self):
@@ -175,23 +203,39 @@ class Learner:
 
     def start(self):
 
-        # Creating a background process for Data Loading
+        # Creating a background process for Data Loading and pre-fetching
         self.data_loader_process = multiprocessing.Process(target=DataLoader.process_starter, args=(PREFETCHER_PORT, MIN_NUM_JOBS))
         self.data_loader_process.start()
-        self.data_loader_conn = rpyc.connect("localhost", PREFETCHER_PORT)
 
+        # Connecting to the Data Loader server to fetch mini-batches from
+        connected = False
+        while not connected:
+            try:
+                print("Trying to connect to Data Loader...")
+                self.data_loader_conn = rpyc.connect("localhost", PREFETCHER_PORT)
+                connected = True
+            except:
+                connected = False
+
+        # Loading latest checkpoint and initializing necessary entities
         self.load_latest_checkpoint()
         self.loss = tf.keras.losses.MeanSquaredError()
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=0.001) # TODO: Figure out a learning rate schedule
         start = time.perf_counter()
         for i in range(NUM_BATCHES):
             print(f"Batch: {i}. QSize: {self.data_loader_conn.root.get_qsize()}")
+
+            # Fetching and parsing a mini-batch of states from the data loader
             x_batch, y_batch = json.loads(self.data_loader_conn.root.get_batch())
             x_batch = tf.io.parse_tensor(base64.b64decode(x_batch), out_type=tf.float32)
             y_batch = tf.io.parse_tensor(base64.b64decode(y_batch), out_type=tf.float32)
-            # x_batch, y_batch = self.data_loader_conn.root.get_batch()
+
+            # Train pass using the batch
             l = self.train_step(x_batch, y_batch)
+
             # TODO: Log loss for training
+
+            # Logistics
             if (i+1) % SAVE_EVERY_BATCHES == 0:
                 print(f"Time: {time.perf_counter() - start}")
                 start = time.perf_counter()
@@ -201,11 +245,11 @@ class Learner:
         model.save(str(TRAIN_DIRECTORY / "checkpoints" / datetime.datetime.now().strftime("%Y_%b_%d_%H_%M_%S_%f")))
 
     def close(self, signal, frame):
-        # if self.model:
-        #     self.save_model(self.model)
-        self.data_loader_conn.close()
+        if self.data_loader_conn:
+            self.data_loader_conn.close()
         if self.data_loader_process:
             self.data_loader_process.terminate()
+        exit(0)
 
 if __name__ == "__main__":
     if check_enough_games():
