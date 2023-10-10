@@ -18,9 +18,11 @@ EVALUATION_BATCH_SIZE = 512
 MAX_SIMULATIONS = 100
 
 class MCTSNode:
-    def __init__(self, state, available_moves):
+    def __init__(self, state, game_model):
+        # TODO: When creating an MCTS node, generate only the available moves but do not generate the children corresponding to its next states
         self.state = state
-        self.available_moves = available_moves
+        self.available_moves = game_model.all_possible_moves(self.state)
+        # TODO: Create a structure to store moves corresponding to a roll and coherent with q,p,n,w values
         self.children = {}  # Child nodes stored as {move: child_node}
         self.q_values = {}  # Q values for state transitions (s, s')
         self.n_values = {}  # N values for state transitions (s, s')
@@ -65,9 +67,11 @@ class PlayerAgent:
         self.game_engine = game_engine
         self.eval_server_conn = eval_server_conn
 
-    def get_next_move(self, available_moves, game_state):
-        root_node = MCTSNode(game_state, available_moves)
+    def get_next_move(self, game_engine):
+        game_state = game_engine.state
+        root_node = MCTSNode(game_state, game_engine.model)
 
+        # TODO: Make a simulation a job and insert multiple jobs to the thread pool
         for _ in range(MAX_SIMULATIONS):
             node = root_node
             game_state_copy = game_state.copy()
@@ -112,7 +116,7 @@ class PlayerAgent:
                     node.q_values[(parent_state, game_state_copy)] = (node.w_values[move] + sim_result) / (node.n_values[move] + 1)
 
                 node = node.parent
-
+        # TODO: Choose the move with the maximum visitation count
         # Choose the move with the highest UCB1 score
         best_move = max(available_moves, key=lambda move: root_node.w_values.get(move, 0))
         return best_move
@@ -167,6 +171,8 @@ class Actor:
         player_agents = [PlayerAgent(player, game_engine, self.eval_server_conn) for player in game_config.players]
 
         game_engine.reset()
+        # TODO: Initialize MCTS Root nodes for all players
+        # TODO: Initial Expansion for all players
         start_time = time.perf_counter()
 
         while not game_engine.state["game_over"]:
@@ -177,17 +183,18 @@ class Actor:
             data_store["states"].append(game_engine.model.state_to_repr(game_engine.state).tolist())
 
             # Finding all possible moves available at the game state
-            all_moves = game_engine.model.all_possible_moves(game_engine.state)
+            # all_moves = game_engine.model.all_possible_moves(game_engine.state)
+            #
+            # # Accumulating the moves available on the current dice roll
+            # available_moves = None
+            # for m in all_moves:
+            #     if m["roll"] == game_engine.state["dice_roll"]:
+            #         available_moves = m["moves"]
+            #         break
 
-            # Accumulating the moves available on the current dice roll
-            available_moves = None
-            for m in all_moves:
-                if m["roll"] == game_engine.state["dice_roll"]:
-                    available_moves = m["moves"]
-                    break
-
+            # TODO: Prune off moves of the current player that are irrelevant to the game_state["dice_roll"]
             # Using MCTS to get the best move
-            best_move = current_agent.get_next_move(available_moves, game_engine.state)
+            best_move = current_agent.get_next_move(game_engine)
 
             move_id = game_engine.state["last_move_id"]
             # Taking the turn on the engine
