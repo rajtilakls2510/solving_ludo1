@@ -473,7 +473,7 @@ class LudoModel:
     def state_to_repr(self, state):
         """ The state representation: [R1, R2, R3, R4, G1, G2, G3, G4, Y1, Y2, Y3, Y4, B1, B2, B3, B4, RPlayer, GPlayer, YPlayer, BPlayer, current]"""
 
-        representation = np.zeros(shape=(59, 21))
+        representation = np.zeros(shape=(59, 21), dtype=np.float32)
         colour_pawn_index = {"R": -1, "G": 3, "Y": 7, "B": 11}
         pawn_pos_index = {"B": -1, "P": 0, "H": 52}
         colour_player_index = {LudoModel.RED: 16, LudoModel.GREEN: 17, LudoModel.YELLOW: 18, LudoModel.BLUE: 19}
@@ -613,7 +613,7 @@ class Ludo:
 
                 self.state["dice_roll"] = roll
                 # print(self.state, [{"roll": move["roll"], "moves": len(move["moves"])} for move in self.all_current_moves])
-                # print(f"player {self.state['current_player']}, roll {roll}")
+                print(f"player {self.state['current_player']}, roll {roll}")
 
 
 

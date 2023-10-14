@@ -58,7 +58,7 @@ class EvaluatorService(rpyc.Service):
         """This method is used to request an evaluation for a set of states.
             Arguments:
                 - player_name: name of the player for whom the request is being evaluated
-                - states: serialized tensor of shape (num_states, 59, 42)
+                - states: serialized tensor of shape (num_states, 59, 21)
             Return:
                 - results: serialized tensor of shape (num_states,)
         """
