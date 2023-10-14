@@ -17,13 +17,28 @@ TRAIN_SERVER_IP = "localhost"
 TRAIN_SERVER_PORT = 18861
 EVALUATOR_PORT = 18862
 NUM_GAMES = 1
-EVALUATION_BATCH_SIZE = 512
-MAX_WORKERS = 2
+EVALUATION_BATCH_SIZE = 1024
+MAX_WORKERS = 4
 N_VL = 3
 C_PUCT = 5
-NUM_SIMULATIONS = 14
+NUM_SIMULATIONS = 420
 SELECTION_TEMP = 1.0
 PRIOR_TEMP = 1.0
+
+
+def prune(node, roll):
+    # Pruning all moves inconsistent with node
+    from_index, to_index = 0, len(node.available_moves)
+    found = False
+    for index, move_dict in enumerate(node.available_moves):
+        if move_dict["roll"] == roll and not found:
+            from_index = index
+            found = True
+        elif move_dict["roll"] != roll and found:
+            to_index = index
+            found = False
+            break
+    node.prune(from_index, to_index)
 
 
 class PlayerAgent:
@@ -32,31 +47,23 @@ class PlayerAgent:
         self.player = player
         self.game_engine = game_engine
 
-    def get_next_move(self, root, roll, evaluator_conn, threadpool):
+    def get_next_move(self, root, evaluator_conn, threadpool, roll):
         """This function executes MCTS simulations and choses a move based on that"""
         # if len(available_moves) > 0:
         #     return random.choice(available_moves)
         # return [[]] # This is the signature for pass move
 
-        # Prune all moves which are inconsistent with current roll
-        from_index, to_index = 0, len(root.available_moves)
-        found = False
-        for index, move_dict in enumerate(root.available_moves):
-            if move_dict["roll"] == roll and not found:
-                from_index = index
-                found = True
-            elif move_dict["roll"] != roll and found:
-                to_index = index
-                found = False
-                break
-        root.prune(from_index, to_index)
-        print(f"Root Moves: {root.available_moves}")
         # Run MCTS simulations
+        start = time.perf_counter()
         futures = []
         for i in range(NUM_SIMULATIONS):
             futures.append(threadpool.submit(mcts_job, i, root, self.player, evaluator_conn, C_PUCT, N_VL, PRIOR_TEMP))
         max_depth = [future.result() for future in as_completed(futures)]
-
+        end = time.perf_counter()
+        print(f"Overall time: {end - start}")
+        
+        # Prune just to be safe
+        prune(root, roll)
 
         # Select a move
         chosen_move_index = np.random.choice(np.arange(len(root.available_moves)), p=softmax(root.stats[self.player.name]["N"], temp=SELECTION_TEMP))
@@ -64,11 +71,16 @@ class PlayerAgent:
 
         return chosen_move, chosen_move_index, max_depth
 
-    def update_tree(self, root, move_index):
+    def update_tree(self, root, roll, move_index):
         # Take the move on the tree and free the rest of the tree that is not required
         root = root.children[move_index]
         root.parent = None
+        # Prune all moves which are inconsistent with current roll
+        if root.expanded:
+            print("Pruning in update tree")
+            prune(root, roll)
         gc.collect()
+        print(f"Root Moves: {root.available_moves}")
         return root
 
 
@@ -106,8 +118,14 @@ class Actor:
 
         game_engine.reset()
         start_time = time.perf_counter()
-        root = MCTNode(deepcopy(game_engine.state), game_config.players, game_engine.model, None)
 
+        # Creating root
+        root = MCTNode(deepcopy(game_engine.state), game_config.players, game_engine.model, None)
+        # Expanding root
+        root.expand()
+        prune(root, game_engine.state["dice_roll"])
+
+        # Playing the game
         while not game_engine.state["game_over"]:
             # Selecting the currently active player
             current_agent = player_agents[game_engine.state["current_player"]]
@@ -127,14 +145,18 @@ class Actor:
 
             # Selecting a move using MCTS
             print(f"Selecting move for player: {current_agent.player.name}")
-            best_move, best_move_index, max_depth = current_agent.get_next_move(root, game_engine.state["dice_roll"], self.eval_server_conn, self.executor)
-            print(f"State: {game_engine.state} Max depth: {max_depth}")
+            best_move, best_move_index, max_depth = current_agent.get_next_move(root, self.eval_server_conn, self.executor, game_engine.state["dice_roll"])
+            
+            print(f"Max depth: {max_depth}")
+            
             move_id = game_engine.state["last_move_id"]
             # Taking the turn on the engine
             game_engine.turn(best_move, game_engine.state["last_move_id"] + 1)
 
+            print(f"State: {game_engine.state}")
+            
             # Updating the MCTS tree
-            root = current_agent.update_tree(root, best_move_index)
+            root = current_agent.update_tree(root, game_engine.state["dice_roll"], best_move_index)
 
             # Storing game data
             game_data["move"] = best_move
@@ -205,7 +227,7 @@ class Actor:
 
     def close(self, signal, frame):
         if self.executor:
-            self.executor.shutdown(wait=True)
+            self.executor.shutdown(wait=True, cancel_futures=True)
         if self.train_server_conn:
             self.train_server_conn.close()
         if self.eval_server_conn:

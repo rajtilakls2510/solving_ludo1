@@ -77,6 +77,7 @@ class EvaluatorService(rpyc.Service):
 
         return base64.b64encode(
             tf.io.serialize_tensor(elem.result).numpy()).decode('ascii')
+    
 
 
 class EvaluatorMain:
@@ -121,9 +122,10 @@ class EvaluatorMain:
         print(f"Pull time: {time.perf_counter() - start}")
         return networks
 
-    @tf.function
-    def predict(self, model, batch):
-        return model(batch)
+    @tf.function(
+    input_signature=[tf.TensorSpec(shape=(None, 59, 21), dtype=tf.float32)])
+    def predict(self, batch):
+        return self.model(batch)
 
     def evaluate(self):
         """This method continuously evaluates all requests present in the queue for each player"""
@@ -158,9 +160,10 @@ class EvaluatorMain:
                         elem.batch_start, elem.batch_end, elem.eval_start, elem.eval_end = batch_start, batch_end, eval_start, eval_end
                         state_batch.append(elem.states[elem.eval_start : elem.eval_end])
                         i = batch_end
-
+                    
+                    self.model = self.networks[player["name"]]
                     # Evaluate a batch
-                    results = self.predict(self.networks[player["name"]], tf.concat(state_batch, axis=0))
+                    results = self.predict(tf.concat(state_batch, axis=0))
 
                     # Collect all the triggers that have to be sent
                     triggers_to_be_sent = []
@@ -172,7 +175,7 @@ class EvaluatorMain:
                     # Send the triggers to all requests to notify them that all of their states are evaluated
                     for trigger in triggers_to_be_sent:
                         trigger.set()
-            time.sleep(0.001)
+            time.sleep(0.000001)
             # Notify the on_game_end() method that the evaluator has successfully finished it's current batch and the game can end peacefully now
             self.evaluation_complete_event.set()
 
