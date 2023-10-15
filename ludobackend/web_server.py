@@ -92,33 +92,16 @@ def take_move():
 
 
 if __name__ == "__main__":
-    ludo = Ludo(GameConfig([[LudoModel.RED], [LudoModel.GREEN], [LudoModel.YELLOW], [LudoModel.BLUE]]))
+    ludo = Ludo(GameConfig([[LudoModel.RED, LudoModel.YELLOW], [LudoModel.GREEN, LudoModel.BLUE]]))
     #
-    # ludo.state = {"game_over": False, "current_player": 0, "dice_roll": [6, 1], "num_more_moves": 0, "last_move_id": 0,
-    #               ludo.model.config.players[0].name: {"single_pawn_pos": {"R1": "RB1", "R2": "P23"},
-    #                                                   "block_pawn_pos": {"BL1": "P4"}},
+    # ludo.state = {"game_over": False, "current_player": 1, "dice_roll": [2], "num_more_moves": 0, "last_move_id": 0,
+    #               ludo.model.config.players[0].name: {"single_pawn_pos": {"R1": "RB1", "R2": "RH5", "R3": "RB3", "R4": "RB4", "Y1": "YB1", "Y2": "YB2", "Y3": "P40", "Y4": "P32"},
+    #                                                   "block_pawn_pos": {}},
     #               ludo.model.config.players[1].name: {
-    #                   "single_pawn_pos": {"G1": "GB1", "G2": "P24", "G3": "P35", "G4": "P41", },
+    #                   "single_pawn_pos": {"G1": "GB1", "G2": "P38", "G3": "GB3", "G4": "P20", "B1": "P42", "B2": "BB2", "B3": "BB3", "B4": "P17"},
     #                   "block_pawn_pos": {}},
-    #               ludo.model.config.players[2].name: {
-    #                   "single_pawn_pos": {"Y1": "YB1", "Y2": "P28", "Y4": "P28", "Y3": "P23"},
-    #                   "block_pawn_pos": {}},
-    #               ludo.model.config.players[3].name: {
-    #                   "single_pawn_pos": {"B1": "BB1", "B4": "BH2"},
-    #                   "block_pawn_pos": {"BL3": "P5"}},
-    #               "all_blocks": [
-    #                   PawnBlock(
-    #                       [pawn for id in ["R3", "R4"] for pawn in ludo.model.pawns[ludo.model.get_colour_from_id(id)]
-    #                        if
-    #                        pawn.id == id],
-    #                       "BL1", rigid=True),
     #
-    #                   PawnBlock(
-    #                       [pawn for id in ["B2", "B3"] for pawn in ludo.model.pawns[ludo.model.get_colour_from_id(id)]
-    #                        if
-    #                        pawn.id == id],
-    #                       "BL3", rigid=True),
-    #               ],
+    #               "all_blocks": [],
     #               }
 
     # ludo.state = {"game_over":False,"current_player": 3, "dice_roll": [1], "num_more_moves":0, "last_move_id": 0,
@@ -134,7 +117,13 @@ if __name__ == "__main__":
     #               ludo.model.config.players[3].name: {
     #                   "single_pawn_pos": {"B1": "BH6", "B2": "BH5", "B3": "BH6", "B4": "BH6"},
     #                   "block_pawn_pos": {}},
-    #               "all_blocks": [],
+    #               "all_blocks": [
+    # PawnBlock(
+    #     [pawn for id in ["Y3", "Y4"] for pawn in ludo.model.pawns[ludo.model.get_colour_from_id(id)]
+    #      if
+    #      pawn.id == id],
+    #     "BL0", rigid=True),
+    #               ],
     #               }
 
     # ludo.state = {"game_over":False,"current_player": 1, "dice_roll": [1], "num_more_moves":0, "last_move_id": 0,
@@ -147,7 +136,8 @@ if __name__ == "__main__":
     #               "all_blocks": [],
     #               }
     # ludo.all_current_moves = ludo.model.all_possible_moves(ludo.state)
-    print(ludo.state)
+    # print(ludo.state)
+    # print(ludo.all_current_moves)
     # print(ludo.model.get_state_jsonable(ludo.state))
     # print(ludo.state, [{"roll": move["roll"], "moves": len(move["moves"])} for move in ludo.all_current_moves])
     # ludo.turn([['Y2', 'P30', 'P33']], 1)

@@ -2,7 +2,7 @@ import base64
 import threading
 import time
 import traceback
-
+from random import choices
 import numpy as np
 import tensorflow as tf
 
@@ -23,7 +23,7 @@ class MCTNode:
         self.available_moves = []
         self.stats = {player.name: {} for player in self.players}
         self.children = []
-        self.expanded = self.state["game_over"]  # By default, make the node expanded if game is over at this state
+        self.expanded = False  # By default, make the node expanded if game is over at this state
         self.expansion_event = threading.Event()
         self.expansion_event.set()
 
@@ -52,10 +52,12 @@ class MCTNode:
 
         # Generating next states
         next_states = []
+        roll = self.state["dice_roll"]
         for move in self.available_moves:
             self.state["dice_roll"] = move["roll"]
             next_states.append(self.model.generate_next_state(self.state, move["move"]))
         self.expanded = True
+        self.state["dice_roll"] = roll
 
         # Generating next nodes
         self.children = [MCTNode(state, self.players, self.model, self) for state in next_states]
@@ -103,13 +105,27 @@ def mcts_job(num, root, player, evaluator_conn, c_puct, n_vl, prior_temp):
         chk1 = time.perf_counter()
         node.expansion_event.wait() # Before attending to any node, wait if another thread is expanding it
         while node.expanded:
-
-            p = node.stats[player.name]["P"]
-            n = node.stats[player.name]["N"]
-            w = node.stats[player.name]["W"]
+            # Applying chance on SELECTION
+            rolls = [[i] for i in range(1, 6)] + [[6, i] for i in range(1, 6)] + [[6, 6, i] for i in range(1, 6)]
+            roll = choices(rolls)
+            
+            from_index, to_index = 0, len(node.available_moves)
+            found = False
+            for index, move_dict in enumerate(node.available_moves):
+                if move_dict["roll"] == roll and not found:
+                    from_index = index
+                    found = True
+                elif move_dict["roll"] != roll and found:
+                    to_index = index
+                    found = False
+                    break
+            if from_index >= to_index:
+                print(f"{num} from_index: {from_index} to_index: {to_index}")
+            p = node.stats[player.name]["P"][from_index:to_index]
+            n = node.stats[player.name]["N"][from_index:to_index]
+            w = node.stats[player.name]["W"][from_index:to_index]
 
             # Selecting a move
-            # TODO: Add roll probabilities
             u = c_puct * p * (np.sqrt(np.sum(n)) / (1.0 + n))
             chosen_move_index = np.argmax(w / n + u)
 
@@ -117,18 +133,26 @@ def mcts_job(num, root, player, evaluator_conn, c_puct, n_vl, prior_temp):
             n[chosen_move_index] += n_vl
             w[chosen_move_index] -= n_vl
 
-            move_indices.append(chosen_move_index)
-            node = node.children[chosen_move_index]
+            move_indices.append(chosen_move_index + from_index)
+            node = node.children[chosen_move_index + from_index]
             node.expansion_event.wait() # Before attending to any node, wait if another thread is expanding it
         chk2 = time.perf_counter()
         # EXPANSION
         if not node.expansion_event.is_set():
-            # In the unfortunate case that a thread has already got passed event.wait() while another thread is expanding the same node, discard the thread
+            # In the unfortunate case that a thread has already got passed event.wait() while another thread is expanding the same node, backup the virtual losses and discard the thread
+            node = node.parent
+            move_indices.reverse()
+
+            for move_index in move_indices:
+                node.stats[player.name]["N"][move_index] -= n_vl
+                node.stats[player.name]["W"][move_index] += n_vl
+                node = node.parent
             print(f"{num} Unfortunate Ending! Selection: {chk2 - chk1}")
             return 0
         node.expansion_event.clear()
         # print(f"{num} Expanding. Selection: {chk2 - chk1}")
-        next_states = node.expand()
+        if not node.state["game_over"]:
+            next_states = node.expand()
         node.expansion_event.set()
         chk3 = time.perf_counter()
         # EVALUATION
@@ -139,11 +163,8 @@ def mcts_job(num, root, player, evaluator_conn, c_puct, n_vl, prior_temp):
                 tf.io.serialize_tensor(
                     tf.stack([node.model.state_to_repr(state) for state in next_states])).numpy()).decode(
                 'ascii')
-            start = time.perf_counter()
             result = tf.io.parse_tensor(base64.b64decode(evaluator_conn.root.evaluate(player.name, states_serialized)),
                                         out_type=tf.float32).numpy()
-            end = time.perf_counter()
-            # print(f"{num} Evaluation time: {end - start} for {len(next_states)} states")
         else:
             # Finding winner and setting result according to it
             winner = None
@@ -160,7 +181,7 @@ def mcts_job(num, root, player, evaluator_conn, c_puct, n_vl, prior_temp):
                     winner = p
                     break
             if winner:
-                result = 1 if winner == player else 0
+                result = 1 if winner == player else -1
         chk4 = time.perf_counter()
         # BACKUP
         # print(f"{num} Backup. Evaluation: {chk4 - chk3}")
@@ -171,13 +192,14 @@ def mcts_job(num, root, player, evaluator_conn, c_puct, n_vl, prior_temp):
         move_indices.reverse()
 
         for move_index in move_indices:
+            player_multipler = 1 if node.model.config.players[node.state["current_player"]] == player else -1
             node.stats[player.name]["N"][move_index] += 1 - n_vl
-            node.stats[player.name]["W"][move_index] += v + n_vl
+            node.stats[player.name]["W"][move_index] += (player_multipler * v) + n_vl
             node = node.parent
         chk5 = time.perf_counter()
         # print(f"{num} Num moves: {len(move_indices)} Ending: {chk5 - chk1}")
         return len(move_indices)
     except Exception as e:
         # print(f"E: {str(e)}")
-        # traceback.print_exc()
-        return 10
+        #traceback.print_exc()
+        return -1

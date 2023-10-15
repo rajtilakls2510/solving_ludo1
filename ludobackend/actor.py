@@ -21,8 +21,8 @@ EVALUATION_BATCH_SIZE = 1024
 MAX_WORKERS = 4
 N_VL = 3
 C_PUCT = 5
-NUM_SIMULATIONS = 420
-SELECTION_TEMP = 1.0
+NUM_SIMULATIONS = 4
+SELECTION_TEMP = 0.5
 PRIOR_TEMP = 1.0
 
 
@@ -207,6 +207,7 @@ class Actor:
                 connected = True
             except:
                 connected = False
+            time.sleep(0.1)
         self.executor = ThreadPoolExecutor(max_workers=MAX_WORKERS)
 
         game = 0

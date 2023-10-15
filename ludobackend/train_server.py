@@ -10,7 +10,7 @@ import os
 import time
 import datetime
 import shutil
-from model import nn_model
+# from model import nn_model
 
 """ This file contains stuff related to the train server which serves the actor """
 
@@ -109,7 +109,8 @@ class TrainingService(rpyc.Service):
             l = os.listdir(DIRECTORY / r / "logs")
             l.sort()
             if len(l) > last_amount:
-                l = l[len(l) - last_amount + 1 :]
+                l = l[len(l) - last_amount:]
+            l.reverse()
             out.append({"run": r, "files": l})
         return json.dumps(out)
 

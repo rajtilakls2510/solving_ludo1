@@ -126,6 +126,14 @@ class LudoModel:
                       LudoModel.BLUE: [Pawn(f"B{i + 1}", LudoModel.BLUE) for i in range(4)]}
         self.last_block_id = 0
 
+    def generate_dice_roll(self):
+        roll = []
+        for i in range(3):
+            rnd = randint(1, 6)
+            roll.append(rnd)
+            if rnd != 6:
+                break
+        return roll
 
     def get_colour_from_id(self, id):
         if id[0] == "R":
@@ -431,7 +439,8 @@ class LudoModel:
             # find out all possible movable pawns
             next_possible_pawns = self.find_next_possible_pawns(state)
             # Validate whether moving that pawn is possible or not for roll[0]
-            for pawn, current_pos in next_possible_pawns["single_pawns"] + next_possible_pawns["block_pawns"]:
+            next_possible_pawns = next_possible_pawns["single_pawns"] + next_possible_pawns["block_pawns"]
+            for pawn, current_pos in next_possible_pawns:
                 valid, destination_pos = self.validate_pawn_move(state, roll[0], current_pos, pawn)
                 # If valid move, generate new state by moving pawn and recursively find out next valid pawn movements for roll[1:]
                 if valid:
@@ -441,12 +450,14 @@ class LudoModel:
 
                     # If all pawns of the player are in finale positions, send back selected pawns
                     try:
+                        pawns = []
                         for colour in self.config.player_colour[next_state["current_player"]]:
-                            for pawn in self.pawns[colour]:
-                                if next_state[self.config.players[next_state["current_player"]].name]["single_pawn_pos"][pawn.id] not in self.finale_positions:
-                                    break
-                            else:
-                                return [sp]
+                            pawns = pawns + self.pawns[colour]
+                        for pawn in pawns:
+                            if next_state[self.config.players[next_state["current_player"]].name]["single_pawn_pos"][pawn.id] not in self.finale_positions:
+                                break
+                        else:
+                            return [sp]
                     except:
                         # If any error comes up, it means not all pawns are in finale positions
                         pass
@@ -556,20 +567,10 @@ class Ludo:
         self.model = LudoModel(config)
         self.reset()
 
-
-    def generate_dice_roll(self):
-        roll = []
-        for i in range(3):
-            rnd = randint(1, 6)
-            roll.append(rnd)
-            if rnd != 6:
-                break
-        return roll
-
     def reset(self):
         self.winner = None
         # Creating initial state
-        roll = self.generate_dice_roll()
+        roll = self.model.generate_dice_roll()
 
         self.state = {"game_over": False, "current_player": 0, "num_more_moves": 0, "dice_roll": roll,
                       "last_move_id": 0}
@@ -609,7 +610,7 @@ class Ludo:
                 # cache all possible next moves
                 self.all_current_moves = self.model.all_possible_moves(self.state)
                 # Generate new dice roll
-                roll = self.generate_dice_roll()
+                roll = self.model.generate_dice_roll()
 
                 self.state["dice_roll"] = roll
                 # print(self.state, [{"roll": move["roll"], "moves": len(move["moves"])} for move in self.all_current_moves])
