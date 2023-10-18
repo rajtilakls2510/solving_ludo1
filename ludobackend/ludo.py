@@ -614,7 +614,7 @@ class Ludo:
 
                 self.state["dice_roll"] = roll
                 # print(self.state, [{"roll": move["roll"], "moves": len(move["moves"])} for move in self.all_current_moves])
-                print(f"player {self.state['current_player']}, roll {roll}")
+                # print(f"player {self.state['current_player']}, roll {roll}")
 
 
 

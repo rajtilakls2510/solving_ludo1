@@ -15,11 +15,11 @@ TRAIN_SERVER_IP = "localhost"
 TRAIN_SERVER_PORT = 18861
 EVALUATOR_PORT = 18862
 NUM_GAMES = 1
-EVALUATION_BATCH_SIZE = 1024
-MAX_WORKERS = 4
-N_VL = 3
-C_PUCT = 5
-NUM_SIMULATIONS = 4
+# EVALUATION_BATCH_SIZE = 1024
+# MAX_WORKERS = 4
+# N_VL = 3
+# C_PUCT = 5
+# NUM_SIMULATIONS = 4
 SELECTION_TEMP = 0.5
 
 
@@ -64,8 +64,8 @@ class PlayerAgent:
             chosen_move = [[]]
 
         end = time.perf_counter()
-        print(f"Overall time: {end - start}")
-        print(f"Chosen move: {chosen_move}")
+        # print(f"Overall time: {end - start}")
+        # print(f"Chosen move: {chosen_move}")
         return chosen_move
 
 
@@ -137,14 +137,14 @@ class Actor:
             data_store["states"].append(game_engine.model.state_to_repr(game_engine.state).tolist())
 
             # Selecting move
-            print(f"Selecting move for player: {self.current_agent.player.name}")
+            # print(f"Selecting move for player: {self.current_agent.player.name}")
             best_move = self.current_agent.get_next_move(game_engine.state)
 
             move_id = game_engine.state["last_move_id"]
             # Taking the turn on the engine
             game_engine.turn(best_move, game_engine.state["last_move_id"] + 1)
 
-            print(f"State: {game_engine.state}")
+            # print(f"State: {game_engine.state}")
 
             # Storing game data
             game_data["move"] = best_move
@@ -160,10 +160,10 @@ class Actor:
 
         print(f"Game Generation Time: {end_time - start_time}")
 
-        print("Game Moves:")
-        for move_data in log["game"]:
-            print(
-                f"Player: {move_data['game_state']['current_player']}, Move id: {move_data['move_id']}, Move: {move_data['move']}")
+        # print("Game Moves:")
+        # for move_data in log["game"]:
+        #     print(
+        #         f"Player: {move_data['game_state']['current_player']}, Move id: {move_data['move_id']}, Move: {move_data['move']}")
 
         data_store["player_won"] = game_config.players.index(game_engine.winner) + 1
         log["config"] = game_config.get_dict()

@@ -83,7 +83,7 @@ def get_state():
 @app.route("/take_move", methods=["POST"])
 def take_move():
     move = request.get_json()
-    print(move)
+    # print(move)
     lock.acquire()
     ludo.turn(move["move"], move["move_id"])
     lock.release()
