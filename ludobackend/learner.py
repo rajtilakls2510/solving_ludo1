@@ -21,14 +21,16 @@ tf.config.experimental.set_memory_growth(tf.config.list_physical_devices("GPU")[
 """ This file contains only stuff related to the learner """
 
 DIRECTORY = Path("runs")
-TRAIN_DIRECTORY = DIRECTORY / "run1"
-MIN_STORED_GAMES = 1   # The minimum number of stored games in experience store before which training can begin
+TRAIN_DIRECTORY = DIRECTORY / "run2"
+MIN_STORED_GAMES = 10_000   # The minimum number of stored games in experience store before which training can begin
 BATCH_SIZE = 512
 NUM_FILES_TO_FETCH_BATCH = 2    # The number of files that need to be loaded to create one mini-batch.
 MIN_NUM_JOBS = 12   # The recommended number of pre-fetched batches that should be in the queue when the learner consumes batches. Also, this is the number of threads in the ThreadPoolExecutor.
 NUM_BATCHES = 50_000    # The total number of mini-batches to train on
-SAVE_EVERY_BATCHES = 10_000     # Number of mini-batches of training before saving a checkpoint
-PREFETCHER_PORT = 18863     # The port at which the Data Loader Server will run
+INITIAL_BATCH = 0
+SAVE_EVERY_BATCHES = 1     # Number of mini-batches of training before saving a checkpoint
+PREFETCHER_PORT = 18862     # The port at which the Data Loader Server will run
+SAVE_FOR_ELO_AFTER_TIME = 28_800 # Save a checkpoint for after every 8 hours for later Elo evaluation
 
 
 
@@ -169,7 +171,7 @@ class DataLoader:
     def close(self):
         if self.server:
             self.server.close()
-        self.executor.shutdown(wait=True)
+        self.executor.shutdown(wait=True, cancel_futures=True)
 
 
 # ========================== Learner Main Process =======================================
@@ -184,11 +186,34 @@ class Learner:
 
     def load_latest_checkpoint(self):
         CHKPT_DIRECTORY = TRAIN_DIRECTORY / "checkpoints"
-        chkpt_names = os.listdir(CHKPT_DIRECTORY)
+        chkpt_names = [dir for dir in os.listdir(CHKPT_DIRECTORY) if len(dir.split(".")) == 1]
         chkpt_names.sort()
         latest_model = chkpt_names[-1]
         path = CHKPT_DIRECTORY / latest_model
         self.model = tf.keras.models.load_model(path)
+
+        # Loading the optimizer and setting schedule
+        try:
+
+            with open(TRAIN_DIRECTORY / "checkpoints" / "optimizer.json", encoding="utf-8") as f:
+                self.optimizer = tf.keras.optimizers.deserialize(json.loads(f.read()))
+        except:
+            self.optimizer = tf.keras.optimizers.Adam()
+        boundaries = []
+        values = []
+
+        if INITIAL_BATCH < 2_00_000:
+            boundaries.extend([2_00_000 - INITIAL_BATCH, 6_00_000 - INITIAL_BATCH])
+            values.extend([1e-2, 1e-3, 1e-4])
+        elif 2_00_000 <= INITIAL_BATCH < 6_00_000:
+            boundaries.extend([6_00_000 - INITIAL_BATCH, ])
+            values.extend([1e-3, 1e-4])
+        else:
+            values.extend([1e-4])
+        lr_schedule = tf.keras.optimizers.schedules.PiecewiseConstantDecay(boundaries=boundaries,
+                                                                           values=values)
+        self.optimizer.learning_rate = lr_schedule
+        print(f"Schedule Loaded: {boundaries} {values}")
         print(f"Loaded model {path}")
 
     @tf.function
@@ -220,9 +245,8 @@ class Learner:
         # Loading latest checkpoint and initializing necessary entities
         self.load_latest_checkpoint()
         self.loss = tf.keras.losses.MeanSquaredError()
-        self.optimizer = tf.keras.optimizers.Adam(learning_rate=0.001) # TODO: Figure out a learning rate schedule
         start = time.perf_counter()
-        for i in range(NUM_BATCHES):
+        for i in range(INITIAL_BATCH, NUM_BATCHES):
             print(f"Batch: {i}. QSize: {self.data_loader_conn.root.get_qsize()}")
 
             # Fetching and parsing a mini-batch of states from the data loader
@@ -243,6 +267,13 @@ class Learner:
 
     def save_model(self, model):
         model.save(str(TRAIN_DIRECTORY / "checkpoints" / datetime.datetime.now().strftime("%Y_%b_%d_%H_%M_%S_%f")))
+
+        # Keep checkpoints to see elo rating later
+        chkpts = os.listdir(TRAIN_DIRECTORY / "chkpts_to_elo")
+        chkpts.sort()
+        last_saved = datetime.datetime.strptime(chkpts[-1],"%Y_%b_%d_%H_%M_%S_%f")
+        if (datetime.datetime.now() - last_saved).seconds > SAVE_FOR_ELO_AFTER_TIME:
+            model.save(str(TRAIN_DIRECTORY / "chkpts_to_elo" / datetime.datetime.now().strftime("%Y_%b_%d_%H_%M_%S_%f")))
 
     def close(self, signal, frame):
         if self.data_loader_conn:

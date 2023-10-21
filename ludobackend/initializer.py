@@ -1,6 +1,12 @@
+import json
+import datetime
+import os
 import tensorflow as tf
 from tensorflow.keras.layers import Conv1D, BatchNormalization, Dense, Activation, Add, Dense, Input, Flatten
 from tensorflow.keras.models import Model
+from tensorflow.keras.optimizers import Adam, schedules, serialize
+tf.config.experimental.set_memory_growth(tf.config.list_physical_devices("GPU")[0], enable=True)
+from pathlib import Path
 # from keras.utils.vis_utils import plot_model
 
 
@@ -50,9 +56,19 @@ def nn_model(input_shape):
     return model
 
 
-# if __name__ == "__main__":
-#     input_shape = (59,21)
-#     model = nn_model(input_shape)
+if __name__ == "__main__":
 
-#     model.summary()
+    DIRECTORY = Path("runs")
+    TRAIN_DIRECTORY = DIRECTORY / "run2"
+    os.makedirs(TRAIN_DIRECTORY, exist_ok=True)
+    dummy_schedule = schedules.PiecewiseConstantDecay(boundaries=[1,2,], values=[1e-2, 1e-3, 1e-4])
+    optimizer = Adam(learning_rate=dummy_schedule)
+    input_shape = (59,21)
+    model = nn_model(input_shape)
+    model.save(str(TRAIN_DIRECTORY / "checkpoints" / datetime.datetime.now().strftime("%Y_%b_%d_%H_%M_%S_%f")))
+    model.save(str(TRAIN_DIRECTORY / "chkpts_to_elo" / datetime.datetime.now().strftime("%Y_%b_%d_%H_%M_%S_%f")))
+    with open(TRAIN_DIRECTORY / "checkpoints" / "optimizer.json", mode="w", encoding="utf-8") as f:
+        f.write(json.dumps(serialize(optimizer)))
+    model.save(str(TRAIN_DIRECTORY / "checkpoints" / datetime.datetime.now().strftime("%Y_%b_%d_%H_%M_%S_%f"))) # Saving one more
+    # model.summary()
     # plot_model(model, to_file='model_plot.png', show_shapes=True, show_layer_names=True)

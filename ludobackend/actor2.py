@@ -13,19 +13,19 @@ import base64
 
 TRAIN_SERVER_IP = "localhost"
 TRAIN_SERVER_PORT = 18861
-EVALUATOR_PORT = 18862
-NUM_GAMES = 1
+EVALUATOR_PORT = 18863 # Add 1 with every actor
+NUM_GAMES = 86_000
 # EVALUATION_BATCH_SIZE = 1024
 # MAX_WORKERS = 4
 # N_VL = 3
 # C_PUCT = 5
 # NUM_SIMULATIONS = 4
-SELECTION_TEMP = 0.5
+SELECTION_TEMP = 1.0
 
 
 def softmax(a, temp=0.1):
     if temp == 0:
-        temp += 0.001
+        temp += 0.01
     return np.exp(a / temp) / np.sum(np.exp(a / temp))
 
 

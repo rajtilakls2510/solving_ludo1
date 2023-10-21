@@ -17,9 +17,10 @@ import shutil
 server = None
 TRAIN_SERVER_PORT = 18861   # The port at which the train server is expected to run at
 DIRECTORY = Path("runs")
-TRAIN_DIRECTORY = DIRECTORY / "run1"
-MAX_CHECKPOINTS = 10     # Maximum number of checkpoints that should be stored
-MAX_EXP_STORE_GAMES = 100     # Maximum number of games to store in experience store
+TRAIN_DIRECTORY = DIRECTORY / "run2"
+MAX_CHECKPOINTS = 10_000     # Maximum number of checkpoints that should be stored
+MAX_EXP_STORE_GAMES = 1_00_000     # Maximum number of games to store in experience store
+MAX_LOG_GAMES = 1_000
 
 """ Hierarchy of store 
 - runs/
@@ -27,6 +28,7 @@ MAX_EXP_STORE_GAMES = 100     # Maximum number of games to store in experience s
         - checkpoints/
         - experience_store/
         - logs/
+        - chkpts_to_elo/
 """
 
 
@@ -77,7 +79,7 @@ class TrainingService(rpyc.Service):
         """This method sends back a list of all checkpoints in ascending order of its timestamp. The last one is always the latest checkpoint.
         """
 
-        checkpoints = os.listdir(TRAIN_DIRECTORY / "checkpoints")
+        checkpoints = [dir for dir in os.listdir(TRAIN_DIRECTORY / "checkpoints") if len(dir.split(".")) == 1]
         checkpoints.sort()
         available = checkpoints
         if len(checkpoints) > MAX_CHECKPOINTS:
@@ -132,15 +134,7 @@ def start_server():
 
 if __name__ == "__main__":
     from rpyc.utils.server import ThreadedServer
-    
-    # input_shape = (59,21)
-    #
-    # model = nn_model(input_shape)
-    #
-    # model.save(str(TRAIN_DIRECTORY / "checkpoints" / "model1"))
-    # model.save(str(TRAIN_DIRECTORY / "checkpoints" / "model2"))
-    # model.save(str(TRAIN_DIRECTORY / "checkpoints" / "model3"))
-    # model.save(str(TRAIN_DIRECTORY / "checkpoints" / "model4"))
+
 
     signal(SIGINT, handle_close)
     signal(SIGTERM, handle_close)
