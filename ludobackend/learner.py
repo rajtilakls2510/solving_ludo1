@@ -221,6 +221,7 @@ class Learner:
         with tf.GradientTape() as tape:
             y_pred = self.model(x_batch)
             l = self.loss(y_batch, y_pred)
+            l += sum(self.model.losses)
 
         grads = tape.gradient(l, self.model.trainable_variables)
         self.optimizer.apply_gradients(zip(grads, self.model.trainable_variables))

@@ -16,11 +16,11 @@ from pathlib import Path
 # We can change parameters and other stuff if needed
 
 def residual_block(x, filters, kernel_size = 3):
-    x1 = Conv1D(filters, kernel_size, padding = 'same')(x)
+    x1 = Conv1D(filters, kernel_size, padding = 'same', kernel_regularizer=tf.keras.regularizers.L2(1e-4), bias_regularizer=tf.keras.regularizers.L2(1e-4))(x)
     x1 = BatchNormalization()(x1)
     x1 = Activation('relu')(x1)
 
-    x2 = Conv1D(filters, kernel_size, padding = 'same')(x1)
+    x2 = Conv1D(filters, kernel_size, padding = 'same', kernel_regularizer=tf.keras.regularizers.L2(1e-4), bias_regularizer=tf.keras.regularizers.L2(1e-4))(x1)
     x2 = BatchNormalization()(x2)
 
     x = Add()([x, x2])
@@ -29,20 +29,20 @@ def residual_block(x, filters, kernel_size = 3):
     return x
 
 def value_head(x):
-    x = Conv1D(1, 1, padding = 'same')(x)
+    x = Conv1D(1, 1, padding = 'same', kernel_regularizer=tf.keras.regularizers.L2(1e-4), bias_regularizer=tf.keras.regularizers.L2(1e-4))(x)
     x = BatchNormalization()(x)
     x = Activation('relu')(x)
 
     x = Flatten()(x)
-    x = Dense(128, activation = 'relu')(x)
-    x = Dense(1, activation ='tanh')(x)
+    x = Dense(128, activation = 'relu', kernel_regularizer=tf.keras.regularizers.L2(1e-4), bias_regularizer=tf.keras.regularizers.L2(1e-4))(x)
+    x = Dense(1, activation ='tanh', kernel_regularizer=tf.keras.regularizers.L2(1e-4), bias_regularizer=tf.keras.regularizers.L2(1e-4))(x)
 
     return x
 
 def nn_model(input_shape):
     input_layer = Input(shape = input_shape)
 
-    x = Conv1D(128, 3, padding = 'same')(input_layer)
+    x = Conv1D(128, 3, padding = 'same', kernel_regularizer=tf.keras.regularizers.L2(1e-4), bias_regularizer=tf.keras.regularizers.L2(1e-4))(input_layer)
     x = BatchNormalization()(x)
     x = Activation('relu')(x)
 
