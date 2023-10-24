@@ -211,13 +211,12 @@ if __name__ == "__main__":
     parser.add_argument("--eport", type=int, default=18863, help="The port on which the Evaluator should run on")
     args = parser.parse_args()
     EVALUATOR_PORT = args.eport
-    print(f"Evaluator Port {EVALUATOR_PORT}")
     actor = Actor()
     # try:
     signal(SIGINT, actor.close)
     signal(SIGTERM, actor.close)
 
-    # actor.start()
+    actor.start()
     actor.close(0, 0)
     # except Exception as e:
     #     print(f"Some error occured: {str(e)}")
