@@ -9,6 +9,7 @@ import tensorflow as tf
 import numpy as np
 import random
 import gc
+import argparse
 import base64
 
 TRAIN_SERVER_IP = "localhost"
@@ -206,12 +207,17 @@ if __name__ == "__main__":
     """ Initialize some parameters and start generating games after contacting the training server """
     print(f"Actor Process started: {os.getpid()}")
     tf.config.experimental.set_memory_growth(tf.config.list_physical_devices("GPU")[0], enable=True)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--eport", type=int, default=18863, help="The port on which the Evaluator should run on")
+    args = parser.parse_args()
+    EVALUATOR_PORT = args.eport
+    print(f"Evaluator Port {EVALUATOR_PORT}")
     actor = Actor()
     # try:
     signal(SIGINT, actor.close)
     signal(SIGTERM, actor.close)
 
-    actor.start()
+    # actor.start()
     actor.close(0, 0)
     # except Exception as e:
     #     print(f"Some error occured: {str(e)}")
