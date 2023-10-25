@@ -147,7 +147,11 @@ class Actor:
 
 
         # Playing the game
-        while not game_engine.state["game_over"]:
+        i = 0
+        while not game_engine.state["game_over"] and i <= 1000:
+            i += 1
+            print("|", end="")
+
             # Selecting the currently active player
             self.current_agent = player_agents[game_engine.state["current_player"]]
 
@@ -175,6 +179,7 @@ class Actor:
         log["game"].append(game_data)
         data_store["states"].append(game_engine.model.state_to_repr(game_engine.state).tolist())
         end_time = time.perf_counter()
+        print("")
 
         print(f"Game Generation Time: {end_time - start_time}")
 

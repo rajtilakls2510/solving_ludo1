@@ -403,6 +403,20 @@ class LudoModel:
 
         return state, num_more_moves
 
+    def check_available_moves(self, state, colour, player):
+        if self.check_block_no_moves_player(state, self.config.players.index(player)):
+            return False
+
+        for pawn in self.pawns[colour]:
+            try:
+                if state[player.name]["single_pawn_pos"][pawn.id] not in self.finale_positions:
+                    return True
+            except:
+                # If pawn is blocked with other, that means the game is not over for the player
+                return True
+        return False
+
+
     def generate_next_state(self, state, move):
         state = deepcopy(state)
         if move != [[]]:
@@ -420,17 +434,25 @@ class LudoModel:
         game_over = True
         for colour, player in self.config.colour_player.items():
             if player != self.config.players[state["current_player"]]:
-                for pawn in self.pawns[colour]:
-                    try:
-                        if state[player.name]["single_pawn_pos"][pawn.id] not in self.finale_positions:
-                            game_over = False
-                    except:
-                        # If pawn is blocked with other, that means the game is not over for the player
-                        game_over = False
+                if self.check_available_moves(state, colour, player):
+                    game_over = False
+
         state["game_over"] = game_over
         if state["num_more_moves"] > 0:
             state["num_more_moves"] -= 1
         return state
+
+    def check_block_no_moves_player(self, state, player_index):
+        # Checks whether a heterogeneous block is present at the top of the home stretch from which a player cannot take any move
+        player = self.config.players[player_index]
+        blocked = {LudoModel.RED: "P52", LudoModel.BLUE: "P39", LudoModel.GREEN: "P13", LudoModel.YELLOW: "P26"}
+        for colour in player.colours:
+            for pawn in self.pawns[colour]:
+                for block in state["all_blocks"]:
+                    # If a block of the particular pawn is found, it is heterogeneous and rigid and in top of home stretch, then the player will have no moves
+                    if (pawn in block.pawns) and block.rigid and (block.pawns[0].id[0] != block.pawns[1].id[0]) and state[player.name]["block_pawn_pos"][block.id] == blocked[colour]:
+                        return True
+        return False
 
     def generate_and_validate_moves(self, state, roll, selected_pawns):
         state = deepcopy(state)
@@ -604,6 +626,9 @@ class Ludo:
                     if not not_finale:
                         self.winner = player
                         break
+            # If the game has ended but there are no winners declared yet, set the current player as winner since the other players have no moves left
+            if not self.winner and self.state["game_over"]:
+                self.winner = self.model.config.players[self.state["current_player"]]
 
 
             if not self.state["game_over"]:
