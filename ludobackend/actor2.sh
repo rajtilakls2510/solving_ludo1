@@ -1,1 +1,1 @@
-nohup python -u actor2.py --stemp $1 > $2 2>&1 &
+nohup python -u actor2.py --stemp $1 --tsport $2 > $3 2>&1 &

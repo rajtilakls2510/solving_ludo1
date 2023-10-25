@@ -8,6 +8,7 @@ tf.config.experimental.set_memory_growth(tf.config.list_physical_devices("GPU")[
 from pathlib import Path
 import os
 import time
+import argparse
 import datetime
 import shutil
 # from model import nn_model
@@ -67,7 +68,10 @@ class TrainingService(rpyc.Service):
             remove = games[:len(games) - MAX_EXP_STORE_GAMES]
 
             for gm in remove:
-                os.remove(TRAIN_DIRECTORY / "experience_store" / gm)
+                try:
+                    os.remove(TRAIN_DIRECTORY / "experience_store" / gm)
+                except:
+                    pass
 
         # Storing logs
         with open(TRAIN_DIRECTORY / "logs" / (time.strftime("%Y_%b_%d_%H_%M_%S_%f")+".json"), "w", encoding="utf-8") as f:
@@ -87,7 +91,10 @@ class TrainingService(rpyc.Service):
             available = checkpoints[len(checkpoints)-MAX_CHECKPOINTS:]
 
             for ch in remove:
-                shutil.rmtree(TRAIN_DIRECTORY / "checkpoints" / ch)
+                try:
+                    shutil.rmtree(TRAIN_DIRECTORY / "checkpoints" / ch)
+                except:
+                    pass
 
         return available
 
@@ -135,7 +142,11 @@ def start_server():
 if __name__ == "__main__":
     from rpyc.utils.server import ThreadedServer
     print(f"Train Server PID: {os.getpid()}")
-
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--port", type=int, default=18861,
+                        help="The port at which this train server will run")
+    args = parser.parse_args()
+    TRAIN_SERVER_PORT = args.port
     signal(SIGINT, handle_close)
     signal(SIGTERM, handle_close)
     threading.Thread(target=start_server).start()

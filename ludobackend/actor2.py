@@ -192,7 +192,7 @@ class Actor:
             print(f"Error while sending data to the training server: {str(e)}")
 
     def start(self):
-        self.train_server_conn = rpyc.connect(TRAIN_SERVER_IP, TRAIN_SERVER_PORT)
+        self.train_server_conn = rpyc.connect(TRAIN_SERVER_IP, TRAIN_SERVER_PORT, config={"sync_request_timeout": None})
         game = 0
         while game < NUM_GAMES:
             print(f"Initializing game: {game}")
@@ -218,11 +218,12 @@ if __name__ == "__main__":
     print(f"Actor Process started: {os.getpid()}")
     tf.config.experimental.set_memory_growth(tf.config.list_physical_devices("GPU")[0], enable=True)
     parser = argparse.ArgumentParser()
-    #parser.add_argument("--eport", type=int, default=18863, help="The port on which the Evaluator should run on")
     parser.add_argument("--stemp", type=float, default=1.0, help="The temperature of the softmax with which moves will be selected for play")
+    parser.add_argument("--tsport", type=int, default=18861,
+                        help="The port of the train server")
     args = parser.parse_args()
-    #EVALUATOR_PORT = args.eport
     SELECTION_TEMP = args.stemp
+    TRAIN_SERVER_PORT = args.tsport
     actor = Actor()
     # try:
     signal(SIGINT, actor.close)
