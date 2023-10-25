@@ -14,7 +14,7 @@ import base64
 
 TRAIN_SERVER_IP = "localhost"
 TRAIN_SERVER_PORT = 18861
-EVALUATOR_PORT = 18863 # Add 1 with every actor
+#EVALUATOR_PORT = 18863 # Add 1 with every actor
 NUM_GAMES = 86_000
 # EVALUATION_BATCH_SIZE = 1024
 # MAX_WORKERS = 4
@@ -218,10 +218,10 @@ if __name__ == "__main__":
     print(f"Actor Process started: {os.getpid()}")
     tf.config.experimental.set_memory_growth(tf.config.list_physical_devices("GPU")[0], enable=True)
     parser = argparse.ArgumentParser()
-    parser.add_argument("--eport", type=int, default=18863, help="The port on which the Evaluator should run on")
+    #parser.add_argument("--eport", type=int, default=18863, help="The port on which the Evaluator should run on")
     parser.add_argument("--stemp", type=float, default=1.0, help="The temperature of the softmax with which moves will be selected for play")
     args = parser.parse_args()
-    EVALUATOR_PORT = args.eport
+    #EVALUATOR_PORT = args.eport
     SELECTION_TEMP = args.stemp
     actor = Actor()
     # try:

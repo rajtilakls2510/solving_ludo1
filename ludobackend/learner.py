@@ -28,7 +28,7 @@ NUM_FILES_TO_FETCH_BATCH = 2    # The number of files that need to be loaded to 
 MIN_NUM_JOBS = 12   # The recommended number of pre-fetched batches that should be in the queue when the learner consumes batches. Also, this is the number of threads in the ThreadPoolExecutor.
 NUM_BATCHES = 50_000    # The total number of mini-batches to train on
 INITIAL_BATCH = 0
-SAVE_EVERY_BATCHES = 1     # Number of mini-batches of training before saving a checkpoint
+SAVE_EVERY_BATCHES = 10_000     # Number of mini-batches of training before saving a checkpoint
 PREFETCHER_PORT = 18862     # The port at which the Data Loader Server will run
 SAVE_FOR_ELO_AFTER_TIME = 28_800 # Save a checkpoint for after every 8 hours for later Elo evaluation
 
@@ -284,6 +284,7 @@ class Learner:
         exit(0)
 
 if __name__ == "__main__":
+    print(f"Learner PID: {os.getpid()}")
     if check_enough_games():
         learner = Learner()
 

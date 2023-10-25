@@ -1,0 +1,1 @@
+nohup python -u learner.py > l.log 2>&1 &
