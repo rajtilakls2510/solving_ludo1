@@ -2,11 +2,12 @@ import rpyc
 from signal import signal, SIGINT, SIGTERM
 import threading
 import json
+import os
+os.environ["CUDA_VISIBLE_DEVICES"]="-1"
 import base64
 import tensorflow as tf
-tf.config.experimental.set_memory_growth(tf.config.list_physical_devices("GPU")[0], True)
+# tf.config.experimental.set_memory_growth(tf.config.list_physical_devices("GPU")[0], True)
 from pathlib import Path
-import os
 import time
 import argparse
 import datetime

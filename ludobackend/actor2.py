@@ -9,6 +9,7 @@ import tensorflow as tf
 import numpy as np
 import random
 import gc
+import traceback
 import argparse
 import base64
 
@@ -225,13 +226,13 @@ if __name__ == "__main__":
     SELECTION_TEMP = args.stemp
     TRAIN_SERVER_PORT = args.tsport
     actor = Actor()
-    # try:
-    signal(SIGINT, actor.close)
-    signal(SIGTERM, actor.close)
+    try:
+        signal(SIGINT, actor.close)
+        signal(SIGTERM, actor.close)
 
-    actor.start()
-    actor.close(0, 0)
-    # except Exception as e:
-    #     print(f"Some error occured: {str(e)}")
-    #     traceback.print_exc()
-    #     actor.close(0,0)
+        actor.start()
+        actor.close(0, 0)
+    except Exception as e:
+        print(f"Some error occured: {str(e)}")
+        traceback.print_exc()
+        actor.close(0,0)

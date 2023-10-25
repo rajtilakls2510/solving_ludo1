@@ -1,11 +1,12 @@
 import json
 import datetime
 import os
+os.environ["CUDA_VISIBLE_DEVICES"]="-1"
 import tensorflow as tf
 from tensorflow.keras.layers import Conv1D, BatchNormalization, Dense, Activation, Add, Dense, Input, Flatten
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam, schedules, serialize
-tf.config.experimental.set_memory_growth(tf.config.list_physical_devices("GPU")[0], enable=True)
+# tf.config.experimental.set_memory_growth(tf.config.list_physical_devices("GPU")[0], enable=True)
 from pathlib import Path
 # from keras.utils.vis_utils import plot_model
 
