@@ -1,1 +1,1 @@
-nohup python -u train_server.py --port $1 > ts.log 2>&1 &
+nohup python -u train_server.py --port $1 > $2 2>&1 &
