@@ -61,13 +61,21 @@ class PlayerAgent:
             results = self.predict(next_states)[:, 0]
             p = softmax(results, temp=SELECTION_TEMP)
             chosen_move = random.choices(available_moves, p)[0]
+
+            # Getting the top 10 moves and their probabilities for logging
+            top_moves = []
+            top_probs = tf.math.top_k(p, k=min(10, p.shape[0]))
+            for i in top_probs.indices:
+                top_moves.append({"move": available_moves[i], "prob": float(p[i])})
+
         else:
             chosen_move = [[]]
+            top_moves = [{"move": [[]], "prob": 1.0}]
 
         end = time.perf_counter()
         # print(f"Overall time: {end - start}")
         # print(f"Chosen move: {chosen_move}")
-        return chosen_move
+        return chosen_move, top_moves
 
 
 class Actor:
@@ -77,8 +85,10 @@ class Actor:
         self.evaluator_process = None
 
     def initialize_game(self):
-        # TODO: To remove bias can randomize the color of the players
-        game_config = GameConfig([[LudoModel.RED, LudoModel.YELLOW], [LudoModel.GREEN, LudoModel.BLUE]])
+        # Removing bias by randomizing the color of the players
+        colours = [[LudoModel.RED, LudoModel.YELLOW], [LudoModel.GREEN, LudoModel.BLUE]]
+        random.shuffle(colours)
+        game_config = GameConfig(colours)
 
         game_engine = Ludo(game_config)
 
@@ -139,7 +149,7 @@ class Actor:
 
             # Selecting move
             # print(f"Selecting move for player: {self.current_agent.player.name}")
-            best_move = self.current_agent.get_next_move(game_engine.state)
+            best_move, top_moves = self.current_agent.get_next_move(game_engine.state)
 
             move_id = game_engine.state["last_move_id"]
             # Taking the turn on the engine
@@ -150,7 +160,7 @@ class Actor:
             # Storing game data
             game_data["move"] = best_move
             game_data["move_id"] = move_id
-            # TODO: Add all moves and their selection probabilities in game_data
+            game_data["top_moves"] = top_moves
             log["game"].append(game_data)
 
         game_data = {"game_state": game_engine.model.get_state_jsonable(game_engine.state), "move_id": len(log["game"]),
@@ -209,8 +219,10 @@ if __name__ == "__main__":
     tf.config.experimental.set_memory_growth(tf.config.list_physical_devices("GPU")[0], enable=True)
     parser = argparse.ArgumentParser()
     parser.add_argument("--eport", type=int, default=18863, help="The port on which the Evaluator should run on")
+    parser.add_argument("--stemp", type=float, default=1.0, help="The temperature of the softmax with which moves will be selected for play")
     args = parser.parse_args()
     EVALUATOR_PORT = args.eport
+    SELECTION_TEMP = args.stemp
     actor = Actor()
     # try:
     signal(SIGINT, actor.close)

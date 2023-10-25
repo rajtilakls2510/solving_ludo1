@@ -17,7 +17,7 @@ import shutil
 server = None
 TRAIN_SERVER_PORT = 18861   # The port at which the train server is expected to run at
 DIRECTORY = Path("runs")
-TRAIN_DIRECTORY = DIRECTORY / "run2"
+TRAIN_DIRECTORY = DIRECTORY / "run1"
 MAX_CHECKPOINTS = 10_000     # Maximum number of checkpoints that should be stored
 MAX_EXP_STORE_GAMES = 1_00_000     # Maximum number of games to store in experience store
 MAX_LOG_GAMES = 1_000
