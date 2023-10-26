@@ -15,21 +15,21 @@ import tensorflow as tf
 import numpy as np
 from queue import Queue
 from rpyc import ThreadedServer
+from tensorflow.keras.optimizers import serialize
 
-tf.config.experimental.set_memory_growth(tf.config.list_physical_devices("GPU")[0], enable=True)
 
 """ This file contains only stuff related to the learner """
 
 DIRECTORY = Path("runs")
 TRAIN_DIRECTORY = DIRECTORY / "run2"
-MIN_STORED_GAMES = 10_000   # The minimum number of stored games in experience store before which training can begin
-BATCH_SIZE = 512
-NUM_FILES_TO_FETCH_BATCH = 2    # The number of files that need to be loaded to create one mini-batch.
-MIN_NUM_JOBS = 12   # The recommended number of pre-fetched batches that should be in the queue when the learner consumes batches. Also, this is the number of threads in the ThreadPoolExecutor.
-NUM_BATCHES = 50_000    # The total number of mini-batches to train on
+MIN_STORED_GAMES = 1_000   # The minimum number of stored games in experience store before which training can begin
+BATCH_SIZE = 2048
+NUM_FILES_TO_FETCH_BATCH = 8    # The number of files that need to be loaded to create one mini-batch.
+MIN_NUM_JOBS = 2   # The recommended number of pre-fetched batches that should be in the queue when the learner consumes batches. Also, this is the number of threads in the ThreadPoolExecutor.
+NUM_BATCHES = 1_00_000    # The total number of mini-batches to train on
 INITIAL_BATCH = 0
-SAVE_EVERY_BATCHES = 10_000     # Number of mini-batches of training before saving a checkpoint
-PREFETCHER_PORT = 18862     # The port at which the Data Loader Server will run
+SAVE_EVERY_BATCHES = 2_000     # Number of mini-batches of training before saving a checkpoint
+PREFETCHER_PORT = 18890     # The port at which the Data Loader Server will run
 SAVE_FOR_ELO_AFTER_TIME = 28_800 # Save a checkpoint for after every 8 hours for later Elo evaluation
 
 
@@ -96,9 +96,9 @@ class DataLoader:
     def keep_fetching(self):
         while True:
             # Adding fetch jobs to the thread pool if there aren't enough jobs in queue
-            for _ in range(self.num_jobs - self.executor._work_queue.qsize()):
+            for _ in range(min(self.num_jobs - self.executor._work_queue.qsize(), self.num_jobs - self.prefetch_queue.qsize())):
                 self.executor.submit(self.fetch)
-            time.sleep(0.001)
+            time.sleep(0.0001)
 
     @classmethod
     def process_terminator(cls, signum, frame):
@@ -238,7 +238,7 @@ class Learner:
         while not connected:
             try:
                 print("Trying to connect to Data Loader...")
-                self.data_loader_conn = rpyc.connect("localhost", PREFETCHER_PORT)
+                self.data_loader_conn = rpyc.connect("localhost", PREFETCHER_PORT, config={"sync_request_timeout": None})
                 connected = True
             except:
                 connected = False
@@ -269,6 +269,8 @@ class Learner:
 
     def save_model(self, model):
         model.save(str(TRAIN_DIRECTORY / "checkpoints" / datetime.datetime.now().strftime("%Y_%b_%d_%H_%M_%S_%f")))
+        with open(TRAIN_DIRECTORY / "checkpoints" / "optimizer.json", mode="w", encoding="utf-8") as f:
+            f.write(json.dumps(serialize(self.optimizer)))
 
         # Keep checkpoints to see elo rating later
         chkpts = os.listdir(TRAIN_DIRECTORY / "chkpts_to_elo")
@@ -286,6 +288,7 @@ class Learner:
 
 if __name__ == "__main__":
     print(f"Learner PID: {os.getpid()}")
+    tf.config.experimental.set_memory_growth(tf.config.list_physical_devices("GPU")[0], enable=True)
     if check_enough_games():
         learner = Learner()
 
