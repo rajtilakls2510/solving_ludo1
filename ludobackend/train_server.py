@@ -78,6 +78,17 @@ class TrainingService(rpyc.Service):
         with open(TRAIN_DIRECTORY / "logs" / (time.strftime("%Y_%b_%d_%H_%M_%S_%f")+".json"), "w", encoding="utf-8") as f:
             f.write(str(log))
 
+        # Deleting older log files
+        games = os.listdir(TRAIN_DIRECTORY / "logs")
+        if len(games) > MAX_LOG_GAMES:
+            games.sort()
+            remove = games[:len(games) - MAX_LOG_GAMES]
+            for gm in remove:
+                try:
+                    os.remove(TRAIN_DIRECTORY / "logs" / gm)
+                except:
+                    pass
+
 
     @rpyc.exposed
     def get_nnet_list(self):

@@ -248,7 +248,7 @@ class Learner:
         self.loss = tf.keras.losses.MeanSquaredError()
         start = time.perf_counter()
         for i in range(INITIAL_BATCH, NUM_BATCHES):
-            print(f"Batch: {i}. QSize: {self.data_loader_conn.root.get_qsize()}")
+            print(f"Batch: {i}. QSize: {self.data_loader_conn.root.get_qsize()}", end="")
 
             # Fetching and parsing a mini-batch of states from the data loader
             x_batch, y_batch = json.loads(self.data_loader_conn.root.get_batch())
@@ -258,6 +258,7 @@ class Learner:
             # Train pass using the batch
             l = self.train_step(x_batch, y_batch)
 
+            print(f" Loss: {l.numpy()}")
             # TODO: Log loss for training
 
             # Logistics
