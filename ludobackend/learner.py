@@ -270,7 +270,7 @@ class Learner:
     def save_model(self, model):
         model.save(str(TRAIN_DIRECTORY / "checkpoints" / datetime.datetime.now().strftime("%Y_%b_%d_%H_%M_%S_%f")))
         with open(TRAIN_DIRECTORY / "checkpoints" / "optimizer.json", mode="w", encoding="utf-8") as f:
-            f.write(json.dumps(serialize(self.optimizer)))
+            f.write(json.dumps(str(serialize(self.optimizer))))
 
         # Keep checkpoints to see elo rating later
         chkpts = os.listdir(TRAIN_DIRECTORY / "chkpts_to_elo")

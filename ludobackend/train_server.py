@@ -114,7 +114,14 @@ class TrainingService(rpyc.Service):
     def get_nnet(self, ckpt_name):
         """This method sends back the nnet architecture and parameters of the required checkpoint"""
         path = TRAIN_DIRECTORY / "checkpoints" / ckpt_name
-        model = tf.keras.models.load_model(path)
+        try:
+            model = tf.keras.models.load_model(path)
+        except:
+            # If the latest checkpoint is still being saved, an error is thrown. Handling that error by loading the second last checkpoint
+            checkpoints = [dir for dir in os.listdir(TRAIN_DIRECTORY / "checkpoints") if len(dir.split(".")) == 1]
+            checkpoints.sort()
+            path = TRAIN_DIRECTORY / "checkpoints" / checkpoints[-2]
+            model = tf.keras.models.load_model(path)
         config = model.get_config()
         params = model.get_weights()
         for i in range(len(params)):
