@@ -146,7 +146,7 @@ class DataLoader:
                 state = np.array(game_data["states"][chosen_state])
 
                 # Apply turn augmentation
-                player = random.choice(np.arange(4) + 1)
+                player = random.choice(np.unique(state[0, 16:20]))
                 state[:, -1] = player
 
                 # Apply pawn augmentation
