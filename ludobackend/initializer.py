@@ -8,7 +8,6 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam, schedules, serialize
 # tf.config.experimental.set_memory_growth(tf.config.list_physical_devices("GPU")[0], enable=True)
 from pathlib import Path
-# from keras.utils.vis_utils import plot_model
 
 
 # The following code is written exactly with reference to AlphaZero Paper
@@ -66,10 +65,9 @@ if __name__ == "__main__":
     optimizer = Adam(learning_rate=dummy_schedule)
     input_shape = (59,21)
     model = nn_model(input_shape)
+    model.compile(optimizer=optimizer)
     model.save(str(TRAIN_DIRECTORY / "checkpoints" / datetime.datetime.now().strftime("%Y_%b_%d_%H_%M_%S_%f")))
     model.save(str(TRAIN_DIRECTORY / "chkpts_to_elo" / datetime.datetime.now().strftime("%Y_%b_%d_%H_%M_%S_%f")))
-    with open(TRAIN_DIRECTORY / "checkpoints" / "optimizer.json", mode="w", encoding="utf-8") as f:
-        f.write(json.dumps(serialize(optimizer)))
     model.save(str(TRAIN_DIRECTORY / "checkpoints" / datetime.datetime.now().strftime("%Y_%b_%d_%H_%M_%S_%f"))) # Saving one more
     # model.summary()
     # plot_model(model, to_file='model_plot.png', show_shapes=True, show_layer_names=True)

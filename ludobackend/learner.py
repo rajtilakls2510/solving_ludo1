@@ -189,16 +189,13 @@ class Learner:
         chkpt_names = [dir for dir in os.listdir(CHKPT_DIRECTORY) if len(dir.split(".")) == 1]
         chkpt_names.sort()
         latest_model = chkpt_names[-1]
+        print(latest_model)
         path = CHKPT_DIRECTORY / latest_model
         self.model = tf.keras.models.load_model(path)
 
-        # Loading the optimizer and setting schedule
-        try:
-
-            with open(TRAIN_DIRECTORY / "checkpoints" / "optimizer.json", encoding="utf-8") as f:
-                self.optimizer = tf.keras.optimizers.deserialize(json.loads(f.read()))
-        except:
-            self.optimizer = tf.keras.optimizers.Adam()
+        # Setting optimize schedule
+        self.optimizer = self.model.optimizer
+        self.optimizer.iterations = tf.Variable(0, dtype=tf.float32)
         boundaries = []
         values = []
 
@@ -269,8 +266,6 @@ class Learner:
 
     def save_model(self, model):
         model.save(str(TRAIN_DIRECTORY / "checkpoints" / datetime.datetime.now().strftime("%Y_%b_%d_%H_%M_%S_%f")))
-        with open(TRAIN_DIRECTORY / "checkpoints" / "optimizer.json", mode="w", encoding="utf-8") as f:
-            f.write(json.dumps(str(serialize(self.optimizer))))
 
         # Keep checkpoints to see elo rating later
         chkpts = os.listdir(TRAIN_DIRECTORY / "chkpts_to_elo")
