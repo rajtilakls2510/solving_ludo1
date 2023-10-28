@@ -14,7 +14,7 @@ import argparse
 import base64
 
 TRAIN_SERVER_IP = "172.26.1.159"
-TRAIN_SERVER_PORT = 18891
+TRAIN_SERVER_PORT = 18861
 #EVALUATOR_PORT = 18863 # Add 1 with every actor
 NUM_GAMES = 86_000
 # EVALUATION_BATCH_SIZE = 1024
@@ -58,9 +58,6 @@ class PlayerAgent:
                 state["current_player"] = self.player_index
             next_states = tf.stack([self.game_engine.model.state_to_repr(state) for state in next_states])
 
-            # ============= Caution: THREAD UNSAFE CODE =================
-            global nnet
-            nnet = self.nnet
             results = self.nnet(next_states, training=False)[:, 0]
             p = softmax(results, temp=SELECTION_TEMP)
             chosen_move = random.choices(available_moves, p)[0]
@@ -132,6 +129,7 @@ class Actor:
             model.set_weights(params)
             networks[player_name] = model
         print(f"Pull time: {time.perf_counter() - start}")
+        print(network_choices)
         return networks
 
     def play_game(self, game_config, game_engine, data_store, log):
