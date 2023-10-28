@@ -14,7 +14,7 @@ import argparse
 import base64
 
 TRAIN_SERVER_IP = "172.26.1.159"
-TRAIN_SERVER_PORT = 18861
+TRAIN_SERVER_PORT = 18891
 #EVALUATOR_PORT = 18863 # Add 1 with every actor
 NUM_GAMES = 86_000
 # EVALUATION_BATCH_SIZE = 1024
@@ -23,27 +23,21 @@ NUM_GAMES = 86_000
 # C_PUCT = 5
 # NUM_SIMULATIONS = 4
 SELECTION_TEMP = 1.0
-nnet = None
+
 
 def softmax(a, temp=0.1):
     if temp == 0:
         temp += 0.01
     return np.exp(a / temp) / np.sum(np.exp(a / temp))
 
-@tf.function(
-        input_signature=[tf.TensorSpec(shape=(None, 59, 21), dtype=tf.float32)])
-def predict(batch):
-    print("Tracing")
-    return nnet(batch)
 
 class PlayerAgent:
 
-    def __init__(self, player, game_engine, nnet):
+    def __init__(self, player_index, player, game_engine, nnet):
+        self.player_index = player_index
         self.player = player
         self.game_engine = game_engine
         self.nnet = nnet
-
-
 
     def get_next_move(self, state):
         """This function executes MCTS simulations and choses a move based on that"""
@@ -60,12 +54,14 @@ class PlayerAgent:
             next_states = []
             for move in available_moves:
                 next_states.append(self.game_engine.model.generate_next_state(state, move))
+            for state in next_states:
+                state["current_player"] = self.player_index
             next_states = tf.stack([self.game_engine.model.state_to_repr(state) for state in next_states])
 
-            #  ==== NOT THREAD SAFE ====== Be careful and apply locks when using threads
+            # ============= Caution: THREAD UNSAFE CODE =================
             global nnet
             nnet = self.nnet
-            results = predict(next_states)[:, 0]
+            results = self.nnet(next_states, training=False)[:, 0]
             p = softmax(results, temp=SELECTION_TEMP)
             chosen_move = random.choices(available_moves, p)[0]
 
@@ -140,7 +136,7 @@ class Actor:
 
     def play_game(self, game_config, game_engine, data_store, log):
         networks = self.pull_network_architecture(game_config.players)
-        player_agents = [PlayerAgent(player, game_engine, networks[player.name]) for player in game_config.players]
+        player_agents = [PlayerAgent(i, player, game_engine, networks[player.name]) for i, player in enumerate(game_config.players)]
 
         game_engine.reset()
         start_time = time.perf_counter()
