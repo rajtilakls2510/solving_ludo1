@@ -73,7 +73,7 @@ class PlayerAgent:
             top_moves = []
             top_probs = tf.math.top_k(p, k=min(10, p.shape[0]))
             for i in top_probs.indices:
-                top_moves.append({"move": available_moves[i], "prob": float(p[i])})
+                top_moves.append({"move": available_moves[i], "prob": float(p[i]), "value": float(results[i])})
 
         else:
             chosen_move = [[]]

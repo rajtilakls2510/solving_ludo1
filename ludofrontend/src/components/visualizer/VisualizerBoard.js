@@ -77,6 +77,7 @@ const VisualizerBoard = () => {
         },
         move_id: 0,
         move: [["B4", "P16", "P18"]],
+        top_moves: [],
       },
     ],
     player_won: 3, // 1-indexed
@@ -135,6 +136,7 @@ const VisualizerBoard = () => {
     },
     move_id: 0,
     move: [["B4", "P16", "P18"]],
+    top_moves: [],
   });
 
   useEffect(() => {
@@ -149,6 +151,7 @@ const VisualizerBoard = () => {
           },
           move_id: res.data.game[0].move_id,
           move: res.data.game[0].move,
+          top_moves: res.data.game[0].top_moves,
         });
       })
       .catch((err) => {
@@ -169,6 +172,7 @@ const VisualizerBoard = () => {
       },
       move_id: info.game[new_move_id].move_id,
       move: info.game[new_move_id].move,
+      top_moves: info.game[new_move_id].top_moves,
     });
   };
 
@@ -428,6 +432,21 @@ const VisualizerBoard = () => {
           <div className="move-taken-container">
             <span> Move Taken: </span>
             <span> {JSON.stringify(boardState.move)}</span>
+          </div>
+          <div className="top-moves-container">
+            <h3>Top Moves</h3>
+            <h3>Probability</h3>
+            <h3>Value</h3>
+            {boardState.top_moves &&
+              boardState.top_moves.map((elem) => {
+                return (
+                  <>
+                    <span>{JSON.stringify(elem.move)}</span>
+                    <span>{elem.prob}</span>
+                    <span>{elem.value}</span>
+                  </>
+                );
+              })}
           </div>
         </div>
       </div>

@@ -868,6 +868,13 @@ VISUALIZER
   column-gap: 5rem;
   font-size: var(--large-text);
 }
+.top-moves-container{
+  display: grid;
+  grid-template-columns: 1fr 0.5fr 0.5fr;
+  row-gap: 0.5rem;
+  column-gap: 1rem;
+  justify-items: center;
+}
 
 .cam-feed-container{
   display: flex;
