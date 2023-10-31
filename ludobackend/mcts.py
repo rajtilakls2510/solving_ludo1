@@ -4,6 +4,7 @@ import time
 import traceback
 from random import choices
 import numpy as np
+from copy import deepcopy
 import tensorflow as tf
 
 
@@ -91,6 +92,7 @@ class MCTNode:
 def softmax(a, temp=0.1):
     if temp == 0:
         temp += 0.001
+    a = np.exp(a - np.max(a))
     return np.exp(a / temp) / np.sum(np.exp(a / temp))
 
 
@@ -159,6 +161,9 @@ def mcts_job(num, root, player, evaluator_conn, c_puct, n_vl, prior_temp):
         # print(f"{num} Evaluating. Expansion: {chk3 - chk2}")
         result = 0
         if not node.state["game_over"]:
+            next_states = [deepcopy(state) for state in next_states]
+            for state in next_states:
+                state["current_player"] = node.state["current_player"]
             states_serialized = base64.b64encode(
                 tf.io.serialize_tensor(
                     tf.stack([node.model.state_to_repr(state) for state in next_states])).numpy()).decode(

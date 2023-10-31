@@ -12,6 +12,8 @@ import gc
 import traceback
 import argparse
 import base64
+import sys
+np.set_printoptions(threshold=sys.maxsize)
 
 TRAIN_SERVER_IP = "172.26.1.159"
 TRAIN_SERVER_PORT = 18861
@@ -28,6 +30,7 @@ SELECTION_TEMP = 1.0
 def softmax(a, temp=0.1):
     if temp == 0:
         temp += 0.01
+    a = np.exp(a - np.max(a))
     return np.exp(a / temp) / np.sum(np.exp(a / temp))
 
 
@@ -60,6 +63,7 @@ class PlayerAgent:
 
             results = self.nnet(next_states, training=False)[:, 0]
             p = softmax(results, temp=SELECTION_TEMP)
+            print(f"{self.player_index} {results} \n {p}")
             chosen_move = random.choices(available_moves, p)[0]
 
             # Getting the top 10 moves and their probabilities for logging

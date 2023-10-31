@@ -85,7 +85,7 @@ class EvaluatorMain:
     evaluator_main_object = None
 
     def __init__(self, train_server_ip, train_server_port, evaluation_batch_size):
-        self.train_server_conn = rpyc.connect(train_server_ip, train_server_port)
+        self.train_server_conn = rpyc.connect(train_server_ip, train_server_port, config={"sync_request_timeout": None})
         self.eval_server = None
         self.main_event = threading.Event()
         self.evaluation_complete_event = threading.Event()
@@ -122,11 +122,6 @@ class EvaluatorMain:
         print(f"Pull time: {time.perf_counter() - start}")
         return networks
 
-    @tf.function(
-    input_signature=[tf.TensorSpec(shape=(None, 59, 21), dtype=tf.float32)])
-    def predict(self, batch):
-        return self.model(batch)
-
     def evaluate(self):
         """This method continuously evaluates all requests present in the queue for each player"""
         while True:
@@ -160,10 +155,9 @@ class EvaluatorMain:
                         elem.batch_start, elem.batch_end, elem.eval_start, elem.eval_end = batch_start, batch_end, eval_start, eval_end
                         state_batch.append(elem.states[elem.eval_start : elem.eval_end])
                         i = batch_end
-                    
-                    self.model = self.networks[player["name"]]
+
                     # Evaluate a batch
-                    results = self.predict(tf.concat(state_batch, axis=0))
+                    results = self.networks[player["name"]](tf.concat(state_batch, axis=0))
 
                     # Collect all the triggers that have to be sent
                     triggers_to_be_sent = []

@@ -18,7 +18,7 @@ lock = Lock()
 ludo = None
 
 TRAIN_SERVER_IP = "172.26.1.159"
-TRAIN_SERVER_PORT = 18861
+TRAIN_SERVER_PORT = 18891
 
 
 # ============= APIs =======================
@@ -94,12 +94,13 @@ def take_move():
 if __name__ == "__main__":
     ludo = Ludo(GameConfig([[LudoModel.RED, LudoModel.YELLOW], [LudoModel.GREEN, LudoModel.BLUE]]))
     #
-    # ludo.state = {"game_over": False, "current_player": 1, "dice_roll": [2], "num_more_moves": 0, "last_move_id": 0,
-    #               ludo.model.config.players[0].name: {"single_pawn_pos": {"R1": "RB1", "R2": "RH5", "R3": "RB3", "R4": "RB4", "Y1": "YB1", "Y2": "YB2", "Y3": "P40", "Y4": "P32"},
-    #                                                   "block_pawn_pos": {}},
-    #               ludo.model.config.players[1].name: {
-    #                   "single_pawn_pos": {"G1": "GB1", "G2": "P38", "G3": "GB3", "G4": "P20", "B1": "P42", "B2": "BB2", "B3": "BB3", "B4": "P17"},
-    #                   "block_pawn_pos": {}},
+    # ludo.state = {"game_over":False,"current_player": 0, "dice_roll": [2], "num_more_moves":1, "last_move_id": 0,
+    #                   ludo.model.config.players[0].name:
+    #                       {"single_pawn_pos": {"R1": "RH6","R2": "P39","R3": "RH6","R4": "P35", "Y1": "YH6","Y2": "YH6","Y3": "YH6","Y4": "YH6",},
+    #                                                 "block_pawn_pos": {}},
+    #                   ludo.model.config.players[1].name: {
+    #                       "single_pawn_pos": {"G1": "GH6", "G2": "P6", "G3": "GH6", "G4": "GB4", "B1": "BB1", "B2": "BH6","B3": "BH6","B4": "BH1"},
+    #                       "block_pawn_pos": {}},
     #
     #               "all_blocks": [],
     #               }
@@ -149,7 +150,7 @@ if __name__ == "__main__":
     # ludo.all_current_moves = ludo.model.all_possible_moves(ludo.state)
     # print(ludo.state)
     # print(ludo.all_current_moves)
-    # ludo.turn([[]], 1)
+    # ludo.turn([['R2', 'P39', 'P41']], 1)
     # print(ludo.state)
     # print(ludo.model.all_possible_moves(ludo.state))
     # print(ludo.winner)

@@ -420,7 +420,7 @@ class LudoModel:
     def generate_next_state(self, state, move):
         state = deepcopy(state)
         if move != [[]]:
-            total_moves = 0
+            total_moves = state["num_more_moves"]
             for m, r in zip(move, state["dice_roll"]):
                 state, num_more_moves = self.__generate_next_state(state, r, m[1], m[0])
                 total_moves += num_more_moves

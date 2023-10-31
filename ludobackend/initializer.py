@@ -29,13 +29,13 @@ def residual_block(x, filters, kernel_size = 3):
     return x
 
 def value_head(x):
-    x = Conv1D(1, 1, padding = 'same', kernel_regularizer=tf.keras.regularizers.L2(1e-4), bias_regularizer=tf.keras.regularizers.L2(1e-4))(x)
+    x = Conv1D(32, 1, padding = 'same', kernel_regularizer=tf.keras.regularizers.L2(1e-4), bias_regularizer=tf.keras.regularizers.L2(1e-4))(x)
     x = BatchNormalization()(x)
     x = Activation('relu')(x)
 
     x = Flatten()(x)
-    x = Dense(128, activation = 'relu', kernel_regularizer=tf.keras.regularizers.L2(1e-4), bias_regularizer=tf.keras.regularizers.L2(1e-4))(x)
-    x = Dense(1, activation ='tanh', kernel_regularizer=tf.keras.regularizers.L2(1e-4), bias_regularizer=tf.keras.regularizers.L2(1e-4))(x)
+    x = Dense(256, activation = 'relu', kernel_regularizer=tf.keras.regularizers.L2(1e-4), bias_regularizer=tf.keras.regularizers.L2(1e-4))(x)
+    x = Dense(1, activation ='linear', kernel_regularizer=tf.keras.regularizers.L2(1e-4), bias_regularizer=tf.keras.regularizers.L2(1e-4))(x)
 
     return x
 
@@ -65,9 +65,8 @@ if __name__ == "__main__":
     optimizer = Adam(learning_rate=dummy_schedule)
     input_shape = (59,21)
     model = nn_model(input_shape)
-    model.compile(optimizer=optimizer)
-    model.save(str(TRAIN_DIRECTORY / "checkpoints" / datetime.datetime.now().strftime("%Y_%b_%d_%H_%M_%S_%f")))
-    model.save(str(TRAIN_DIRECTORY / "chkpts_to_elo" / datetime.datetime.now().strftime("%Y_%b_%d_%H_%M_%S_%f")))
-    model.save(str(TRAIN_DIRECTORY / "checkpoints" / datetime.datetime.now().strftime("%Y_%b_%d_%H_%M_%S_%f"))) # Saving one more
-    # model.summary()
-    # plot_model(model, to_file='model_plot.png', show_shapes=True, show_layer_names=True)
+    # model.compile(optimizer=optimizer)
+    # model.save(str(TRAIN_DIRECTORY / "checkpoints" / datetime.datetime.now().strftime("%Y_%b_%d_%H_%M_%S_%f")))
+    # model.save(str(TRAIN_DIRECTORY / "chkpts_to_elo" / datetime.datetime.now().strftime("%Y_%b_%d_%H_%M_%S_%f")))
+    # model.save(str(TRAIN_DIRECTORY / "checkpoints" / datetime.datetime.now().strftime("%Y_%b_%d_%H_%M_%S_%f"))) # Saving one more
+    print(model.summary())

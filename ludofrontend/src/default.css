@@ -603,6 +603,7 @@ BOARD
 .board-container{
   min-width: 90vh;
   min-height: 90vh;
+  max-height: 90vh;
   overflow: hidden;
   background-color: white;
   display: grid;

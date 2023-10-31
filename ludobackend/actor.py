@@ -13,7 +13,7 @@ import random
 from copy import deepcopy
 import gc
 
-TRAIN_SERVER_IP = "localhost"
+TRAIN_SERVER_IP = "172.26.1.159"
 TRAIN_SERVER_PORT = 18861
 EVALUATOR_PORT = 18863
 NUM_GAMES = 1
@@ -21,9 +21,9 @@ EVALUATION_BATCH_SIZE = 1024
 MAX_WORKERS = 4
 N_VL = 3
 C_PUCT = 5
-NUM_SIMULATIONS = 4
-SELECTION_TEMP = 0.5
-PRIOR_TEMP = 1.0
+NUM_SIMULATIONS = 100
+SELECTION_TEMP = 0.001
+PRIOR_TEMP = 0.5
 
 
 def prune(node, roll):
@@ -41,9 +41,16 @@ def prune(node, roll):
     node.prune(from_index, to_index)
 
 
+def move_probabilities(a, temp=0.1):
+    if temp == 0:
+        temp += 0.001
+    return (a / temp) / np.sum(a / temp)
+
+
 class PlayerAgent:
 
-    def __init__(self, player, game_engine):
+    def __init__(self, player_index, player, game_engine):
+        self.player_index = player_index
         self.player = player
         self.game_engine = game_engine
 
@@ -56,7 +63,9 @@ class PlayerAgent:
         # Run MCTS simulations
         start = time.perf_counter()
         futures = []
-        for i in range(NUM_SIMULATIONS):
+        max_depth = []
+        print(f"Sims: {len(root.available_moves) + 25}")
+        for i in range(len(root.available_moves) + 25):
             futures.append(threadpool.submit(mcts_job, i, root, self.player, evaluator_conn, C_PUCT, N_VL, PRIOR_TEMP))
         max_depth = [future.result() for future in as_completed(futures)]
         end = time.perf_counter()
@@ -66,8 +75,10 @@ class PlayerAgent:
         prune(root, roll)
 
         # Select a move
-        chosen_move_index = np.random.choice(np.arange(len(root.available_moves)), p=softmax(root.stats[self.player.name]["N"], temp=SELECTION_TEMP))
+        p = move_probabilities(root.stats[self.player.name]["N"], temp=SELECTION_TEMP)
+        chosen_move_index = np.random.choice(np.arange(len(root.available_moves)), p=p)
         chosen_move = root.available_moves[chosen_move_index]["move"]
+        print(f"Player: {self.player_index} N:{root.stats[self.player.name]['N']} W:{root.stats[self.player.name]['W']} P:{p}")
 
         return chosen_move, chosen_move_index, max_depth
 
@@ -80,7 +91,7 @@ class PlayerAgent:
             print("Pruning in update tree")
             prune(root, roll)
         gc.collect()
-        print(f"Root Moves: {root.available_moves}")
+        # print(f"Root Moves: {root.available_moves}")
         return root
 
 
@@ -91,8 +102,10 @@ class Actor:
         self.evaluator_process = None
 
     def initialize_game(self):
-        # TODO: To remove bias can randomize the color of the players
-        game_config = GameConfig([[LudoModel.RED, LudoModel.YELLOW], [LudoModel.GREEN,LudoModel.BLUE]])
+        # Removing bias by randomizing the color of the players
+        colours = [[LudoModel.RED, LudoModel.YELLOW], [LudoModel.GREEN, LudoModel.BLUE]]
+        random.shuffle(colours)
+        game_config = GameConfig(colours)
 
         game_engine = Ludo(game_config)
 
@@ -114,7 +127,7 @@ class Actor:
         return data_store, log
 
     def play_game(self, game_config, game_engine, data_store, log):
-        player_agents = [PlayerAgent(player, game_engine) for player in game_config.players]
+        player_agents = [PlayerAgent(i, player, game_engine) for i, player in enumerate(game_config.players)]
 
         game_engine.reset()
         start_time = time.perf_counter()
@@ -132,16 +145,6 @@ class Actor:
 
             game_data = {"game_state": game_engine.model.get_state_jsonable(game_engine.state)}
             data_store["states"].append(game_engine.model.state_to_repr(game_engine.state).tolist())
-
-            # Finding all possible moves available at the game state
-            # all_moves = game_engine.model.all_possible_moves(game_engine.state)
-            #
-            # # Accumulating the moves available on current dice roll
-            # available_moves = None
-            # for m in all_moves:
-            #     if m["roll"] == game_engine.state["dice_roll"]:
-            #         available_moves = m["moves"]
-            #         break
 
             # Selecting a move using MCTS
             print(f"Selecting move for player: {current_agent.player.name}")
@@ -191,7 +194,7 @@ class Actor:
             print(f"Error while sending data to the training server: {str(e)}")
 
     def start(self):
-        self.train_server_conn = rpyc.connect(TRAIN_SERVER_IP, TRAIN_SERVER_PORT)
+        self.train_server_conn = rpyc.connect(TRAIN_SERVER_IP, TRAIN_SERVER_PORT, config={"sync_request_timeout": None})
 
         # Starting the Evaluator process in the background which evaluates the states in MCTS
         from evaluator import EvaluatorMain
@@ -203,7 +206,7 @@ class Actor:
         while not connected:
             try:
                 print("Trying to connect to Evaluator...")
-                self.eval_server_conn = rpyc.connect("localhost", EVALUATOR_PORT)
+                self.eval_server_conn = rpyc.connect("localhost", EVALUATOR_PORT, config={"sync_request_timeout": None})
                 connected = True
             except:
                 connected = False
@@ -224,7 +227,7 @@ class Actor:
 
             game += 1
 
-        self.executor.shutdown(wait=True)
+        self.executor.shutdown(wait=True, cancel_futures=True)
 
     def close(self, signal, frame):
         if self.executor:

@@ -16,16 +16,18 @@ import numpy as np
 from queue import Queue
 from rpyc import ThreadedServer
 from tensorflow.keras.optimizers import serialize
+import sys
+np.set_printoptions(threshold=sys.maxsize)
 
 
 """ This file contains only stuff related to the learner """
 
 DIRECTORY = Path("runs")
-TRAIN_DIRECTORY = DIRECTORY / "run2"
-MIN_STORED_GAMES = 1_000   # The minimum number of stored games in experience store before which training can begin
+TRAIN_DIRECTORY = DIRECTORY / "run1"
+MIN_STORED_GAMES = 1   # The minimum number of stored games in experience store before which training can begin
 BATCH_SIZE = 2048
 NUM_FILES_TO_FETCH_BATCH = 8    # The number of files that need to be loaded to create one mini-batch.
-MIN_NUM_JOBS = 2   # The recommended number of pre-fetched batches that should be in the queue when the learner consumes batches. Also, this is the number of threads in the ThreadPoolExecutor.
+MIN_NUM_JOBS = 1   # The recommended number of pre-fetched batches that should be in the queue when the learner consumes batches. Also, this is the number of threads in the ThreadPoolExecutor.
 NUM_BATCHES = 1_00_000    # The total number of mini-batches to train on
 INITIAL_BATCH = 0
 SAVE_EVERY_BATCHES = 2_000     # Number of mini-batches of training before saving a checkpoint
@@ -144,11 +146,9 @@ class DataLoader:
                 # Choose one state
                 chosen_state = np.random.randint(low=0, high=num_states)
                 state = np.array(game_data["states"][chosen_state])
-
                 # Apply turn augmentation
                 player = random.choice(np.unique(state[0, 16:20]))
                 state[:, -1] = player
-
                 # Apply pawn augmentation
                 permutation_array = np.eye(N=21)
                 permutation_array[:4, :4] = self.get_pawn_permutation()  # Red
@@ -156,13 +156,14 @@ class DataLoader:
                 permutation_array[8:12, 8:12] = self.get_pawn_permutation()  # Yellow
                 permutation_array[12:16, 12:16] = self.get_pawn_permutation()  # Blue
                 state = state @ permutation_array
-
                 # Select the appropriate reward based on who won
                 reward = [1] if state[0, -1] == winner_player else [-1]
 
                 states.append(state)
                 rewards.append(reward)
         # Push the batch to the pre-fetch queue
+        print(tf.convert_to_tensor(states, dtype=tf.float32))
+        print(tf.convert_to_tensor(rewards, dtype=tf.float32))
         self.prefetch_queue.put((tf.convert_to_tensor(states, dtype=tf.float32), tf.convert_to_tensor(rewards, dtype=tf.float32)))
 
     def get_batch(self):
