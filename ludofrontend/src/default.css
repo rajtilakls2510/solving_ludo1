@@ -53,8 +53,8 @@ html {
   --btn-green: linear-gradient(to bottom, rgb(94, 173, 94), rgb(4, 156, 4));
   --btn-yellow: linear-gradient(
     to bottom,
-    rgb(236, 221, 13),
-    rgb(181, 175, 58)
+    rgb(226, 211, 0),
+    rgb(159, 149, 12)
   );
   --btn-normal-dark: linear-gradient(
     to bottom,
@@ -632,7 +632,7 @@ BOARD
 }
 
 .yellow-container{
-  background-color: yellow;
+  background-color: rgb(243, 243, 3);
 }
 
 .inner-colour-container{

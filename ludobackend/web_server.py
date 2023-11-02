@@ -18,7 +18,7 @@ lock = Lock()
 ludo = None
 
 TRAIN_SERVER_IP = "172.26.1.159"
-TRAIN_SERVER_PORT = 18891
+TRAIN_SERVER_PORT = 18861
 
 
 # ============= APIs =======================

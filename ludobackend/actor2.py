@@ -29,7 +29,7 @@ SELECTION_TEMP = 1.0
 
 def softmax(a, temp=0.1):
     if temp == 0:
-        temp += 0.01
+        temp += 0.1
     a = np.exp(a - np.max(a))
     return np.exp(a / temp) / np.sum(np.exp(a / temp))
 
@@ -63,7 +63,7 @@ class PlayerAgent:
 
             results = self.nnet(next_states, training=False)[:, 0]
             p = softmax(results, temp=SELECTION_TEMP)
-            print(f"{self.player_index} {results} \n {p}")
+            # print(f"{self.player_index} {results} \n {p}")
             chosen_move = random.choices(available_moves, p)[0]
 
             # Getting the top 10 moves and their probabilities for logging
