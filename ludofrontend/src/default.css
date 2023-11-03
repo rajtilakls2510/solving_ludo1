@@ -354,11 +354,11 @@ img {
   font-weight: 400;
 }
 
-.card .btn {
+/* .card .btn {
   box-shadow: none;
   position: relative;
-}
-.card .btn::after {
+} */
+/* .card .btn::after {
   content: "";
   position: absolute;
   top: -3px;
@@ -368,7 +368,7 @@ img {
   height: calc(100% + 6px);
   outline: var(--card-section-outline);
   border: var(--card-section-border);
-}
+} */
 
 .card-section {
   outline: var(--card-section-outline);
@@ -794,6 +794,7 @@ VISUALIZER
 
 .info-container{
   width: 100%;
+  min-height: 90vh;
   display: flex;
   flex-direction: column;
   row-gap: 1rem;
@@ -875,6 +876,36 @@ VISUALIZER
   row-gap: 0.5rem;
   column-gap: 1rem;
   justify-items: center;
+}
+
+
+/* ==================
+LIVE PLAY
+================== */
+
+.live-double-colour-container{
+  display: flex;
+  flex-direction: row;
+  column-gap: 2rem;
+  justify-content: center;
+}
+.colour-combination{
+  color: var(--primary-700);
+  cursor: pointer;
+  position: relative;
+  padding: 0.2rem 0.5rem;
+}
+
+.colour-combination::after{
+  content: "";
+  position: absolute;
+  top: -3px;
+  left: -3px;
+  border-radius: var(--btnBorderRadius);
+  width: calc(100% + 6px);
+  height: calc(100% + 6px);
+  outline: var(--card-section-outline);
+  border: var(--card-section-border);
 }
 
 .cam-feed-container{

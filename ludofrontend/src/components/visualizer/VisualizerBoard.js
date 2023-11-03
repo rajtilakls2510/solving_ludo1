@@ -160,6 +160,7 @@ const VisualizerBoard = () => {
   }, []);
 
   const handleStep = (steps) => {
+    console.log(`Handling Step ${steps}`);
     let new_move_id = boardState.move_id + steps;
     if (new_move_id < 0) new_move_id = 0;
     else if (new_move_id >= info.game.length)
@@ -185,6 +186,7 @@ const VisualizerBoard = () => {
               colour="red"
               id="R"
               boardState={boardState.game_state}
+              playerState={{ available_pos: [], selected_pawns: [] }}
               handlePawnClick={() => {}}
               handlePosClick={() => {}}
             />
@@ -194,6 +196,7 @@ const VisualizerBoard = () => {
             colours={["", "", "", "", "", ""]}
             ids={["P12", "P11", "P10", "P9", "P8", "P7"]}
             boardState={boardState.game_state}
+            playerState={{ available_pos: [], selected_pawns: [] }}
             handlePawnClick={() => {}}
             handlePosClick={() => {}}
           ></PContainer>
@@ -202,6 +205,7 @@ const VisualizerBoard = () => {
             colours={["", "green", "green", "green", "green", "green"]}
             ids={["P13", "GH1", "GH2", "GH3", "GH4", "GH5"]}
             boardState={boardState.game_state}
+            playerState={{ available_pos: [], selected_pawns: [] }}
             handlePawnClick={() => {}}
             handlePosClick={() => {}}
           ></PContainer>
@@ -210,6 +214,7 @@ const VisualizerBoard = () => {
             colours={["", "green", "", "", "", ""]}
             ids={["P14", "P15", "P16", "P17", "P18", "P19"]}
             boardState={boardState.game_state}
+            playerState={{ available_pos: [], selected_pawns: [] }}
             handlePawnClick={() => {}}
             handlePosClick={() => {}}
           ></PContainer>
@@ -218,6 +223,7 @@ const VisualizerBoard = () => {
               colour="green"
               id="G"
               boardState={boardState.game_state}
+              playerState={{ available_pos: [], selected_pawns: [] }}
               handlePawnClick={() => {}}
               handlePosClick={() => {}}
             />
@@ -227,6 +233,7 @@ const VisualizerBoard = () => {
             colours={["", "red", "", "", "", ""]}
             ids={["P1", "P2", "P3", "P4", "P5", "P6"]}
             boardState={boardState.game_state}
+            playerState={{ available_pos: [], selected_pawns: [] }}
             handlePawnClick={() => {}}
             handlePosClick={() => {}}
           ></PContainer>
@@ -235,6 +242,7 @@ const VisualizerBoard = () => {
             id=""
             classes="middle-winner"
             boardState={boardState.game_state}
+            playerState={{ available_pos: [], selected_pawns: [] }}
             handlePawnClick={() => {}}
             handlePosClick={() => {}}
           ></Pos>
@@ -243,6 +251,7 @@ const VisualizerBoard = () => {
             classes="middle-winner"
             id="GH6"
             boardState={boardState.game_state}
+            playerState={{ available_pos: [], selected_pawns: [] }}
             handlePawnClick={() => {}}
             handlePosClick={() => {}}
           ></Pos>
@@ -251,6 +260,7 @@ const VisualizerBoard = () => {
             id=""
             classes="middle-winner"
             boardState={boardState.game_state}
+            playerState={{ available_pos: [], selected_pawns: [] }}
             handlePawnClick={() => {}}
             handlePosClick={() => {}}
           ></Pos>
@@ -259,6 +269,7 @@ const VisualizerBoard = () => {
             colours={["", "", "", "", "", ""]}
             ids={["P20", "P21", "P22", "P23", "P24", "P25"]}
             boardState={boardState.game_state}
+            playerState={{ available_pos: [], selected_pawns: [] }}
             handlePawnClick={() => {}}
             handlePosClick={() => {}}
           ></PContainer>
@@ -267,6 +278,7 @@ const VisualizerBoard = () => {
             colours={["", "red", "red", "red", "red", "red"]}
             ids={["P52", "RH1", "RH2", "RH3", "RH4", "RH5"]}
             boardState={boardState.game_state}
+            playerState={{ available_pos: [], selected_pawns: [] }}
             handlePawnClick={() => {}}
             handlePosClick={() => {}}
           ></PContainer>
@@ -275,6 +287,7 @@ const VisualizerBoard = () => {
             id="RH6"
             classes="middle-winner"
             boardState={boardState.game_state}
+            playerState={{ available_pos: [], selected_pawns: [] }}
             handlePawnClick={() => {}}
             handlePosClick={() => {}}
           ></Pos>
@@ -283,6 +296,7 @@ const VisualizerBoard = () => {
             id=""
             classes="middle-winner"
             boardState={boardState.game_state}
+            playerState={{ available_pos: [], selected_pawns: [] }}
             handlePawnClick={() => {}}
             handlePosClick={() => {}}
           ></Pos>
@@ -291,6 +305,7 @@ const VisualizerBoard = () => {
             id="YH6"
             classes="middle-winner"
             boardState={boardState.game_state}
+            playerState={{ available_pos: [], selected_pawns: [] }}
             handlePawnClick={() => {}}
             handlePosClick={() => {}}
           ></Pos>
@@ -299,6 +314,7 @@ const VisualizerBoard = () => {
             colours={["yellow", "yellow", "yellow", "yellow", "yellow", ""]}
             ids={["YH5", "YH4", "YH3", "YH2", "YH1", "P26"]}
             boardState={boardState.game_state}
+            playerState={{ available_pos: [], selected_pawns: [] }}
             handlePawnClick={() => {}}
             handlePosClick={() => {}}
           ></PContainer>
@@ -307,6 +323,7 @@ const VisualizerBoard = () => {
             colours={["", "", "", "", "", ""]}
             ids={["P51", "P50", "P49", "P48", "P47", "P46"]}
             boardState={boardState.game_state}
+            playerState={{ available_pos: [], selected_pawns: [] }}
             handlePawnClick={() => {}}
             handlePosClick={() => {}}
           ></PContainer>
@@ -315,6 +332,7 @@ const VisualizerBoard = () => {
             id=""
             classes="middle-winner"
             boardState={boardState.game_state}
+            playerState={{ available_pos: [], selected_pawns: [] }}
             handlePawnClick={() => {}}
             handlePosClick={() => {}}
           ></Pos>
@@ -323,6 +341,7 @@ const VisualizerBoard = () => {
             id="BH6"
             classes="middle-winner"
             boardState={boardState.game_state}
+            playerState={{ available_pos: [], selected_pawns: [] }}
             handlePawnClick={() => {}}
             handlePosClick={() => {}}
           ></Pos>
@@ -331,6 +350,7 @@ const VisualizerBoard = () => {
             id=""
             classes="middle-winner"
             boardState={boardState.game_state}
+            playerState={{ available_pos: [], selected_pawns: [] }}
             handlePawnClick={() => {}}
             handlePosClick={() => {}}
           ></Pos>
@@ -339,6 +359,7 @@ const VisualizerBoard = () => {
             colours={["", "", "", "", "yellow", ""]}
             ids={["P32", "P31", "P30", "P29", "P28", "P27"]}
             boardState={boardState.game_state}
+            playerState={{ available_pos: [], selected_pawns: [] }}
             handlePawnClick={() => {}}
             handlePosClick={() => {}}
           ></PContainer>
@@ -347,6 +368,7 @@ const VisualizerBoard = () => {
               colour="blue"
               id="B"
               boardState={boardState.game_state}
+              playerState={{ available_pos: [], selected_pawns: [] }}
               handlePawnClick={() => {}}
               handlePosClick={() => {}}
             />
@@ -356,6 +378,7 @@ const VisualizerBoard = () => {
             colours={["", "", "", "", "blue", ""]}
             ids={["P45", "P44", "P43", "P42", "P41", "P40"]}
             boardState={boardState.game_state}
+            playerState={{ available_pos: [], selected_pawns: [] }}
             handlePawnClick={() => {}}
             handlePosClick={() => {}}
           ></PContainer>
@@ -364,6 +387,7 @@ const VisualizerBoard = () => {
             colours={["blue", "blue", "blue", "blue", "blue", ""]}
             ids={["BH5", "BH4", "BH3", "BH2", "BH1", "P39"]}
             boardState={boardState.game_state}
+            playerState={{ available_pos: [], selected_pawns: [] }}
             handlePawnClick={() => {}}
             handlePosClick={() => {}}
           ></PContainer>
@@ -372,6 +396,7 @@ const VisualizerBoard = () => {
             colours={["", "", "", "", "", ""]}
             ids={["P33", "P34", "P35", "P36", "P37", "P38"]}
             boardState={boardState.game_state}
+            playerState={{ available_pos: [], selected_pawns: [] }}
             handlePawnClick={() => {}}
             handlePosClick={() => {}}
           ></PContainer>
@@ -380,6 +405,7 @@ const VisualizerBoard = () => {
               colour="yellow"
               id="Y"
               boardState={boardState.game_state}
+              playerState={{ available_pos: [], selected_pawns: [] }}
               handlePawnClick={() => {}}
               handlePosClick={() => {}}
             />
@@ -415,9 +441,12 @@ const VisualizerBoard = () => {
                       : ""
                   }`}
                 >
-                  {player.colours.map((colour) => {
+                  {player.colours.map((colour, index) => {
                     return (
-                      <button className={`btn pawn btn-${colour}`}></button>
+                      <button
+                        key={index}
+                        className={`btn pawn btn-${colour}`}
+                      ></button>
                     );
                   })}
                   <span>{player.name}</span>
@@ -438,7 +467,7 @@ const VisualizerBoard = () => {
             <h3>Probability</h3>
             <h3>Value</h3>
             {boardState.top_moves &&
-              boardState.top_moves.map((elem) => {
+              boardState.top_moves.map((elem, index) => {
                 return (
                   <>
                     <span>{JSON.stringify(elem.move)}</span>

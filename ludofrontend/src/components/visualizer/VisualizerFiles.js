@@ -34,6 +34,7 @@ const VisualizerFiles = () => {
           <div className="runs">
             {files.map((elem, index) => (
               <div
+                key={index}
                 className="btn btn-blue"
                 onClick={() => handleRunClick(index)}
               >
@@ -49,8 +50,9 @@ const VisualizerFiles = () => {
             <>
               <h5>Available Log Files for {run}:</h5>
               <div className="runs">
-                {selectedFiles.map((elem) => (
+                {selectedFiles.map((elem, index) => (
                   <div
+                    key={index}
                     className="btn btn-green"
                     onClick={() => handleFileClick(elem)}
                   >

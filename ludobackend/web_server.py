@@ -9,7 +9,7 @@ import requests
 import numpy as np
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from threading import Lock
+from threading import Lock, Event
 from ludo import Ludo, GameConfig, LudoModel, Pawn, PawnBlock
 import numpy
 import sys
@@ -26,7 +26,10 @@ numpy.set_printoptions(threshold=sys.maxsize)
 
 app = Flask(__name__)
 cors = CORS(app)
-lock = Lock()
+move_lock, create_lock = Lock(), Lock()
+move_event, create_event = Event(), Event()
+move_event.set()
+create_event.set()
 ludo = None
 data_store = None
 log = None
@@ -41,6 +44,7 @@ TRAIN_SERVER_PORT = 18861
 @app.route("/check_running_game", methods=["GET"])
 def check_game():
     running = True
+    create_event.wait()
     if ludo is None:
         running = False
     return jsonify({"running": running}), 200
@@ -49,6 +53,7 @@ def check_game():
 @app.route("/reset", methods=["GET"])
 def reset():
     global ludo, data_store, log, players
+    create_event.wait()
     ludo = None
     data_store = None
     log = None
@@ -97,11 +102,14 @@ class Agent:
     def take_next_move(self, state):
         pass
 
+    def get_mode(self):
+        pass
 
 class HumanAgent(Agent):
     def __init__(self, player_index, player, game_engine):
         super().__init__(player_index, player, game_engine)
-
+    def get_mode(self):
+        return "Human"
 
 class AIAgent(Agent):
 
@@ -124,9 +132,9 @@ class AIAgent(Agent):
             next_states = []
             for move in available_moves:
                 next_states.append(self.game_engine.model.generate_next_state(state, move))
-            for state in next_states:
-                state["current_player"] = self.player_index
-            next_states = tf.stack([self.game_engine.model.state_to_repr(state) for state in next_states])
+            for s in next_states:
+                s["current_player"] = self.player_index
+            next_states = tf.stack([self.game_engine.model.state_to_repr(s) for s in next_states])
 
             results = self.nnet(next_states, training=False)[:, 0]
             p = softmax(results, temp=0)
@@ -146,14 +154,20 @@ class AIAgent(Agent):
         end = time.perf_counter()
         # print(f"Overall time: {end - start}")
         # print(f"Chosen move: {chosen_move}")
-
+        time.sleep(1)
+        print(f"AI Taking move: {chosen_move} with move_id: {state['last_move_id']+1}")
         take_move_inner(chosen_move, state["last_move_id"] + 1, top_moves)
+
+    def get_mode(self):
+        return "AI"
 
 
 @app.route("/create_new_game", methods=["POST"])
 def create_new_game():
     """ [{mode: "AI", colours: ["red", "yellow"]}, {mode: "Human", colours: ["blue", "green"]}] """
     global ludo, data_store, log, players
+    create_event.clear()
+    create_lock.acquire()
     if ludo is None:
         r = request.get_json()
         colours = []
@@ -191,12 +205,14 @@ def create_new_game():
         }
 
     new_state = get_state_jsonable_dict()
+    create_event.set()
+    create_lock.release()
     threading.Thread(target=players[ludo.state["current_player"]].take_next_move, args=(ludo.state,)).start()
     return jsonify(new_state), 200
 
 
 def get_state_jsonable_dict():
-    new_state = {"config": ludo.model.config.get_dict()}
+    new_state = {"config": ludo.model.config.get_dict(), "modes": [m.get_mode() for m in players]}
     pawns = {}
     positions = []
     for player in ludo.model.config.players:
@@ -248,20 +264,26 @@ def get_log_file():
 
 @app.route("/get_current_board", methods=["GET"])
 def get_state():
+    if not move_event.is_set():
+        return "Move is being taken", 500
     new_state = get_state_jsonable_dict()
     return jsonify(new_state), 200
 
 
 def take_move_inner(move, move_id, top_moves):
+    move_lock.acquire()
+    move_event.clear()
+    # print(f"Move_id: {move_id} received, state: {ludo.state} Move: {move}")
     if move_id == ludo.state["last_move_id"] + 1:
         global data_store, log
         game_data = {"game_state": ludo.model.get_state_jsonable(ludo.state)}
         data_store["states"].append(ludo.model.state_to_repr(ludo.state).tolist())
 
         ludo.turn(move, move_id)
+        # print(f"After taking turn, state: {ludo.state}")
 
         game_data["move"] = move
-        game_data["move_id"] = move_id
+        game_data["move_id"] = move_id - 1
         game_data["top_moves"] = top_moves
         log["game"].append(game_data)
 
@@ -271,8 +293,8 @@ def take_move_inner(move, move_id, top_moves):
                          "move": []}
             log["game"].append(game_data)
             data_store["states"].append(ludo.model.state_to_repr(ludo.state).tolist())
-            data_store["player_won"] = ludo.config.players.index(ludo.winner) + 1
-            log["config"] = ludo.config.get_dict()
+            data_store["player_won"] = ludo.model.config.players.index(ludo.winner) + 1
+            log["config"] = ludo.model.config.get_dict()
             log["player_won"] = data_store["player_won"]
             train_server_conn = rpyc.connect(TRAIN_SERVER_IP, TRAIN_SERVER_PORT, config={"sync_request_timeout": None})
             train_server_conn.root.push_game_data(json.dumps(data_store), json.dumps(log))
@@ -280,14 +302,14 @@ def take_move_inner(move, move_id, top_moves):
         else:
             # If game is not over, switch to the next player
             threading.Thread(target=players[ludo.state["current_player"]].take_next_move, args=(ludo.state,)).start()
+    move_lock.release()
+    move_event.set()
 
 
 @app.route("/take_move", methods=["POST"])
 def take_move():
     move = request.get_json()
-    lock.acquire()
     take_move_inner(move["move"], move["move_id"], move["top_moves"])
-    lock.release()
     new_state = get_state_jsonable_dict()
     return jsonify(new_state), 200
 

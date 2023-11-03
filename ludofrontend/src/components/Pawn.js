@@ -1,13 +1,13 @@
 import React from "react";
 import { Tooltip } from "react-tooltip";
 
-const Pawn = ({ number, id, boardState, handlePawnClick }) => {
+const Pawn = ({ number, id, boardState, playerState, handlePawnClick }) => {
   return (
     <button
       className={`btn pawn-1 pawn-${number} btn-${
         boardState.pawns[id].colour
       } btn-${boardState.pawns[id].colour}-${
-        boardState.selected_pawns.includes(id) ? "selected" : ""
+        playerState.selected_pawns.includes(id) ? "selected" : ""
       }`}
       onClick={() => handlePawnClick(id)}
       data-tooltip-id="pawn-tooltip"

@@ -6,6 +6,7 @@ const PContainer = ({
   colours,
   ids,
   boardState,
+  playerState,
   handlePawnClick,
   handlePosClick,
 }) => {
@@ -17,6 +18,7 @@ const PContainer = ({
           container_colour={colour}
           id={ids[index]}
           boardState={boardState}
+          playerState={playerState}
           handlePawnClick={handlePawnClick}
           handlePosClick={handlePosClick}
         />

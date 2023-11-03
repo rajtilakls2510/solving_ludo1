@@ -1,7 +1,14 @@
 import React from "react";
 import Pos from "./Pos";
 
-const Base = ({ colour, id, boardState, handlePawnClick, handlePosClick }) => {
+const Base = ({
+  colour,
+  id,
+  boardState,
+  playerState,
+  handlePawnClick,
+  handlePosClick,
+}) => {
   return (
     <div className="inner-colour-container">
       {[1, 2, 3, 4].map((num) => (
@@ -11,6 +18,7 @@ const Base = ({ colour, id, boardState, handlePawnClick, handlePosClick }) => {
           container_colour={colour}
           id={`${id}B${num}`}
           boardState={boardState}
+          playerState={playerState}
           handlePawnClick={handlePawnClick}
           handlePosClick={handlePosClick}
         />

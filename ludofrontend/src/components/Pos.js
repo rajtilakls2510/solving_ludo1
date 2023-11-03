@@ -7,6 +7,7 @@ const Pos = ({
   container_colour,
   id,
   boardState,
+  playerState,
   handlePawnClick,
   handlePosClick,
 }) => {
@@ -21,7 +22,7 @@ const Pos = ({
   return (
     <div
       className={`pos-container ${classes} ${container_colour}-container ${
-        boardState.available_pos.includes(id) ? "pos-container-selectable" : ""
+        playerState.available_pos.includes(id) ? "pos-container-selectable" : ""
       }`}
       onClick={() => handlePosClick(id)}
     >
@@ -43,6 +44,7 @@ const Pos = ({
           number={index + 1}
           id={pawn_id}
           boardState={boardState}
+          playerState={playerState}
           handlePawnClick={handlePawnClick}
         />
       ))}

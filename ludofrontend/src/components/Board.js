@@ -84,7 +84,7 @@ const Board = () => {
   };
 
   useEffect(() => {
-    Api.getState()
+    Api.getCurrentBoard()
       .then((res) => {
         applyBoardState(res.data);
       })

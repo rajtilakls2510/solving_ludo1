@@ -16,7 +16,7 @@ const Navbar = () => {
               </Link>
             </li>
             <li>
-              <Link to="/live_play" className="nav-link">
+              <Link to="/choose_colour_live_play" className="nav-link">
                 Live Play
               </Link>
             </li>
