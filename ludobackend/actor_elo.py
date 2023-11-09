@@ -64,8 +64,13 @@ class PlayerAgent:
             next_states = tf.stack([self.game_engine.model.state_to_repr(state) for state in next_states])
 
             results = self.nnet(next_states, training=False)[:, 0]
-            p = softmax(results, temp=SELECTION_TEMP)
+            # p = softmax(results, temp=SELECTION_TEMP)
             # print(f"{self.player_index} {results} \n {p}")
+            p = np.zeros(shape=results.shape)
+            if self.player_index == 0:
+                p[np.argmax(results)] = 1.0
+            else:
+                p[:] = 1 / len(available_moves)
             chosen_move = random.choices(available_moves, p)[0]
 
             # Getting the top 10 moves and their probabilities for logging
