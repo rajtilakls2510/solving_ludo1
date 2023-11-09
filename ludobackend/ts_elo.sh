@@ -1,0 +1,1 @@
+nohup python -u ts_elo.py --port $1 > $2 2>&1 &

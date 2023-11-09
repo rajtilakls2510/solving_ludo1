@@ -1,0 +1,1 @@
+nohup python -u actor_elo.py --cname_current $1 --tsport $2 > $3 2>&1 &
