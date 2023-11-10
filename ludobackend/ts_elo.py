@@ -124,7 +124,7 @@ class TrainingService(rpyc.Service):
         runs = os.listdir(DIRECTORY)
         out = []
         for r in runs:
-            l = os.listdir(DIRECTORY / r / "logs")
+            l = os.listdir(DIRECTORY / r / "logs_to_elo" / "2023_Oct_31_00_00_00_000000")
             l.sort()
             if len(l) > last_amount:
                 l = l[len(l) - last_amount:]

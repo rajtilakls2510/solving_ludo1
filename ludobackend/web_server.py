@@ -35,7 +35,7 @@ data_store = None
 log = None
 players = None
 
-TRAIN_SERVER_IP = "172.26.1.159"
+TRAIN_SERVER_IP = "localhost"
 TRAIN_SERVER_PORT = 18861
 
 

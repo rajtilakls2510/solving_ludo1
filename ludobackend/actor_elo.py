@@ -15,7 +15,7 @@ import base64
 import sys
 np.set_printoptions(threshold=sys.maxsize)
 
-TRAIN_SERVER_IP = "172.26.1.159"
+TRAIN_SERVER_IP = "localhost"
 TRAIN_SERVER_PORT = 18861
 #EVALUATOR_PORT = 18863 # Add 1 with every actor
 NUM_GAMES = 100
