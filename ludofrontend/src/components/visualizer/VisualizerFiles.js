@@ -8,7 +8,7 @@ const VisualizerFiles = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    Api.getLogFilenames(10)
+    Api.getLogFilenames(100)
       .then((res) => {
         setFiles(res.data);
       })

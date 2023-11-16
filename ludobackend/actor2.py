@@ -15,15 +15,9 @@ import base64
 import sys
 np.set_printoptions(threshold=sys.maxsize)
 
-TRAIN_SERVER_IP = "172.26.1.159"
+TRAIN_SERVER_IP = "localhost"
 TRAIN_SERVER_PORT = 18861
-#EVALUATOR_PORT = 18863 # Add 1 with every actor
-NUM_GAMES = 86_000
-# EVALUATION_BATCH_SIZE = 1024
-# MAX_WORKERS = 4
-# N_VL = 3
-# C_PUCT = 5
-# NUM_SIMULATIONS = 4
+NUM_GAMES = 100
 SELECTION_TEMP = 1.0
 
 
@@ -44,9 +38,6 @@ class PlayerAgent:
 
     def get_next_move(self, state):
         """This function executes MCTS simulations and choses a move based on that"""
-        # if len(available_moves) > 0:
-        #     return random.choice(available_moves)
-        # return [[]] # This is the signature for pass move
 
         start = time.perf_counter()
         available_moves = []
@@ -63,7 +54,6 @@ class PlayerAgent:
 
             results = self.nnet(next_states, training=False)[:, 0]
             p = softmax(results, temp=SELECTION_TEMP)
-            # print(f"{self.player_index} {results} \n {p}")
             chosen_move = random.choices(available_moves, p)[0]
 
             # Getting the top 10 moves and their probabilities for logging
