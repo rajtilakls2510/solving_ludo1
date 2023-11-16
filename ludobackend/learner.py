@@ -16,8 +16,6 @@ import numpy as np
 from queue import Queue
 from rpyc import ThreadedServer
 from tensorflow.keras.optimizers import serialize
-import sys
-np.set_printoptions(threshold=sys.maxsize)
 
 
 """ This file contains only stuff related to the learner """
@@ -25,13 +23,13 @@ np.set_printoptions(threshold=sys.maxsize)
 DIRECTORY = Path("runs")
 TRAIN_DIRECTORY = DIRECTORY / "run1"
 MIN_STORED_GAMES = 1   # The minimum number of stored games in experience store before which training can begin
-BATCH_SIZE = 2048
-NUM_FILES_TO_FETCH_BATCH = 8    # The number of files that need to be loaded to create one mini-batch.
-MIN_NUM_JOBS = 1   # The recommended number of pre-fetched batches that should be in the queue when the learner consumes batches. Also, this is the number of threads in the ThreadPoolExecutor.
-NUM_BATCHES = 1_00_000    # The total number of mini-batches to train on
-INITIAL_BATCH = 0
-SAVE_EVERY_BATCHES = 2_000     # Number of mini-batches of training before saving a checkpoint
-PREFETCHER_PORT = 18890     # The port at which the Data Loader Server will run
+BATCH_SIZE = 64
+NUM_FILES_TO_FETCH_BATCH = 2    # The number of files that need to be loaded to create one mini-batch.
+MIN_NUM_JOBS = 2   # The recommended number of pre-fetched batches that should be in the queue when the learner consumes batches. Also, this is the number of threads in the ThreadPoolExecutor.
+NUM_BATCHES = 8_00_000    # The total number of mini-batches to train on
+INITIAL_BATCH = 3_51_000
+SAVE_EVERY_BATCHES = 1_000     # Number of mini-batches of training before saving a checkpoint
+PREFETCHER_PORT = 18890      # The port at which the Data Loader Server will run
 SAVE_FOR_ELO_AFTER_TIME = 28_800 # Save a checkpoint for after every 8 hours for later Elo evaluation
 
 
@@ -140,15 +138,16 @@ class DataLoader:
             # Find who won
             winner_player = game_data["player_won"]
             num_states = len(game_data["states"])
-
             # BATCH_SIZE // NUM_FILES_TO_FETCH_BATCH number of states must be selected
             for _ in range(BATCH_SIZE // NUM_FILES_TO_FETCH_BATCH):
                 # Choose one state
                 chosen_state = np.random.randint(low=0, high=num_states)
                 state = np.array(game_data["states"][chosen_state])
+
                 # Apply turn augmentation
                 player = random.choice(np.unique(state[0, 16:20]))
                 state[:, -1] = player
+
                 # Apply pawn augmentation
                 permutation_array = np.eye(N=21)
                 permutation_array[:4, :4] = self.get_pawn_permutation()  # Red
@@ -156,14 +155,13 @@ class DataLoader:
                 permutation_array[8:12, 8:12] = self.get_pawn_permutation()  # Yellow
                 permutation_array[12:16, 12:16] = self.get_pawn_permutation()  # Blue
                 state = state @ permutation_array
+
                 # Select the appropriate reward based on who won
                 reward = [1] if state[0, -1] == winner_player else [-1]
 
                 states.append(state)
                 rewards.append(reward)
         # Push the batch to the pre-fetch queue
-        print(tf.convert_to_tensor(states, dtype=tf.float32))
-        print(tf.convert_to_tensor(rewards, dtype=tf.float32))
         self.prefetch_queue.put((tf.convert_to_tensor(states, dtype=tf.float32), tf.convert_to_tensor(rewards, dtype=tf.float32)))
 
     def get_batch(self):
@@ -200,14 +198,12 @@ class Learner:
         boundaries = []
         values = []
 
-        if INITIAL_BATCH < 2_00_000:
-            boundaries.extend([2_00_000 - INITIAL_BATCH, 6_00_000 - INITIAL_BATCH])
-            values.extend([1e-2, 1e-3, 1e-4])
-        elif 2_00_000 <= INITIAL_BATCH < 6_00_000:
-            boundaries.extend([6_00_000 - INITIAL_BATCH, ])
+        if INITIAL_BATCH < 3_50_000:
+            boundaries.extend([3_50_000 - INITIAL_BATCH, ])
             values.extend([1e-3, 1e-4])
         else:
-            values.extend([1e-4])
+            boundaries.extend([0,])
+            values.extend([1e-4, 1e-4])
         lr_schedule = tf.keras.optimizers.schedules.PiecewiseConstantDecay(boundaries=boundaries,
                                                                            values=values)
         self.optimizer.learning_rate = lr_schedule
@@ -252,10 +248,9 @@ class Learner:
             x_batch, y_batch = json.loads(self.data_loader_conn.root.get_batch())
             x_batch = tf.io.parse_tensor(base64.b64decode(x_batch), out_type=tf.float32)
             y_batch = tf.io.parse_tensor(base64.b64decode(y_batch), out_type=tf.float32)
-
+            
             # Train pass using the batch
             l = self.train_step(x_batch, y_batch)
-
             print(f" Loss: {l.numpy()}")
             # TODO: Log loss for training
 
