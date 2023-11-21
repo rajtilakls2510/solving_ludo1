@@ -55,7 +55,8 @@ We apply AlphaZero style implementation to solve this game. We provide the syste
 
 ### System Architecture
 
-[Attach system architecture image]
+ <img src="ludobackend/sys_arch.jpg" width="600" height="300">
+
 We divide our system into three main components: `Learning System`, `Acting System` and `Client System`. These systems can run on
 different machines and the communications are maintained through RPCs and HTTP. 
 - `Learning System`: This system learns from generated data and trains a Value network. It stores all generated games, checkpoints 
