@@ -78,7 +78,7 @@ the games generated from them, it serves the web server with different game file
 learning system maintains a directory hierarchy for training and it is inside `ludobackend/`. We now describe how games and checkpoints are stored.
 
 - `runs`/
-    - `run\<i\>`/
+    - `run<i>`/
         - `checkpoints`/
         - `experience_store`/
         - `logs`/
