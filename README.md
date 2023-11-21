@@ -15,7 +15,7 @@ The group members are:
 - Rajtilak Pal, M. Tech., AI, Entry No.- 2022AIM1010
 - Protyay Dey, M. Tech., AI, Entry No.- 2022AIM1009
 
-[Attach Ludo Board Picture]
+ <img src="ludobackend/LudoBoard.png" width="600" height="600">
 
 ### Code Package Structure
 The package structure is simple containing only two main folders: `ludobackend` and `ludofrontend`, in the root level 
@@ -148,7 +148,7 @@ training game visualization and live play using APIs of `Train Server`. It mainl
   machine/port, make sure to change the `API_URL` constant at the top of the file.
 
 ### Board Description
-[Attach Ludo Board Picture]
+ <img src="ludobackend/LudoBoard2.png" width="600" height="600">
 
 The Ludo board consists of 4 `bases` for 4 colours. Each `base` contains 4 `positions` to hold 4 `pawns`. The
 `Main Track` consists of the 52 different positions apart from a `Home Stretch` per colour of 5 non-final positions and a 
