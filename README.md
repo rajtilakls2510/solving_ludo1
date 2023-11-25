@@ -7,7 +7,7 @@ highly stochastic and complex with a large branching factor, a major challenge
 for Artificial Intelligence researchers. We try to build an agent using reinforcement 
 learning for a game of doubles (meaning that it can be played by only two players, each 
 player choosing two alternate colours) and a complete report of our work can be found here.
-[Attach link to Report file].
+[Report](https://drive.google.com/file/d/18o-sI9pu9MPxhHi0sPPbZCnAaGCIQawJ/view?usp=sharing).
 
 ### Team Details
 This project is done as part of the Term Paper for CS512 (Artificial Intelligence) at IIT Ropar, India. 
