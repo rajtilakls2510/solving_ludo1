@@ -47,7 +47,7 @@ class GameConfig:
 
 @cython.cclass
 class LudoModel:
-    config: GameConfig
+    config = cython.declare(GameConfig, visibility="public")
     stars: cython.p_short
     final_pos: cython.p_short
     colour_tracks: cython.p_short
@@ -105,16 +105,7 @@ class LudoModel:
         free(self.colour_tracks)
 
 
-@cython.cclass
-class Block:
-    pawns: cython.short
-    pos: cython.short
-    rigid: cython.bint
-
-    def __init__(self, pawns, pos, rigid):
-        self.pawns = pawns
-        self.pos = pos
-        self.rigid = rigid
+Block = cython.struct(pawns=cython.short, pos=cython.short, rigid=cython.bint)
 
 
 @cython.cclass
@@ -125,11 +116,11 @@ class State:
     dice_roll: cython.short
     last_move_id: cython.short
     colour_pos: cython.p_short
-    all_block: list[Block]
+    all_blocks: list[Block]
 
     def __init__(self):
         self.colour_pos = cython.cast(cython.p_short, calloc(5*93, cython.sizeof(cython.short)))
-        self.blocks = []
+        self.all_blocks = []
 
     def __decalloc__(self):
         free(self.colour_pos)
