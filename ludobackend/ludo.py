@@ -162,6 +162,7 @@ class LudoModel:
         for block in state["all_blocks"]:
             if block.check_pawn_ids(pawn_ids):
                 return block
+        return None
 
     def find_next_possible_pawns(self, state):
         # Collect all next possible pawns
@@ -181,6 +182,14 @@ class LudoModel:
                 pawn2_id, pawn2_pos = list(state[current_player.name]["single_pawn_pos"].items())[j]
                 if pawn1_pos == pawn2_pos:
                     blocks.append([[pawn1_id, pawn2_id], pawn1_pos])
+        for i in range(len(state[current_player.name]["single_pawn_pos"].items())):
+            for j in range(len(state[current_player.name]["block_pawn_pos"].items())):
+                s_pawn_id, s_pawn_pos = list(state[current_player.name]["single_pawn_pos"].items())[i]
+                b_id, b_pawn_pos = list(state[current_player.name]["block_pawn_pos"].items())[j]
+                block = self.fetch_block_from_id(state, b_id)
+                if not block.rigid and s_pawn_pos == b_pawn_pos:
+                    blocks.append([[s_pawn_id, block.pawns[0].id], s_pawn_pos])
+                    blocks.append([[s_pawn_id, block.pawns[1].id], s_pawn_pos])
         next_possible_pawns["block_pawns"] = blocks
         # Block pawn forward
         for block_id, pos in state[current_player.name]["block_pawn_pos"].items():
@@ -358,6 +367,17 @@ class LudoModel:
                 state["all_blocks"].append(block)
             else:
                 block = self.fetch_block_from_pawn_ids(state, pawn)
+                if block is None:
+                    i = 0 if pawn[0] in state[current_player.name]["single_pawn_pos"].keys() else 1
+                    pawn_to_replace = pawn[i]
+                    pawn_to_be_replaced = pawn[(i+1) % 2]
+                    for b in state["all_blocks"]:
+                        block = b
+                        if b.check_pawn_in_block(Pawn(pawn_to_be_replaced, self.get_colour_from_id(pawn_to_be_replaced))):
+                            b.pawns = [p for p in block.pawns if p.id != pawn_to_be_replaced]
+                            b.pawns.append(Pawn(pawn_to_replace, self.get_colour_from_id(pawn_to_replace)))
+                            state[current_player.name]["single_pawn_pos"][pawn_to_be_replaced] = state[current_player.name]["single_pawn_pos"][pawn_to_replace]
+                            state[current_player.name]["single_pawn_pos"].pop(pawn_to_replace)
             block_id = block.id
             state[current_player.name]["block_pawn_pos"][block_id] = destination
 

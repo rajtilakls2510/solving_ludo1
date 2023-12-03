@@ -315,18 +315,22 @@ def take_move():
 
 
 if __name__ == "__main__":
-    # ludo = Ludo(GameConfig([[LudoModel.RED, LudoModel.YELLOW], [LudoModel.GREEN, LudoModel.BLUE]]))
-    #
-    # ludo.state = {"game_over":False,"current_player": 0, "dice_roll": [2], "num_more_moves":1, "last_move_id": 0,
-    #                   ludo.model.config.players[0].name:
-    #                       {"single_pawn_pos": {"R1": "RH6","R2": "P39","R3": "RH6","R4": "P35", "Y1": "YH6","Y2": "YH6","Y3": "YH6","Y4": "YH6",},
-    #                                                 "block_pawn_pos": {}},
-    #                   ludo.model.config.players[1].name: {
-    #                       "single_pawn_pos": {"G1": "GH6", "G2": "P6", "G3": "GH6", "G4": "GB4", "B1": "BB1", "B2": "BH6","B3": "BH6","B4": "BH1"},
-    #                       "block_pawn_pos": {}},
-    #
-    #               "all_blocks": [],
-    #               }
+    ludo = Ludo(GameConfig([[LudoModel.RED, LudoModel.YELLOW], [LudoModel.GREEN, LudoModel.BLUE]]))
+
+    ludo.state = {"game_over":False,"current_player": 0, "dice_roll": [2], "num_more_moves":1, "last_move_id": 0,
+                      ludo.model.config.players[0].name:
+                          {"single_pawn_pos": {"R3": "RH6","R4": "P35", "Y1": "P21","Y2": "YH6","Y3": "YH6","Y4": "YH6",},
+                                                    "block_pawn_pos": {"BL0": "P23"}},
+                      ludo.model.config.players[1].name: {
+                          "single_pawn_pos": {"G1": "GH6", "G2": "P6", "G3": "GH6", "G4": "GB4", "B1": "BB1", "B2": "BH6","B3": "BH6","B4": "BH1"},
+                          "block_pawn_pos": {}},
+
+                  "all_blocks": [PawnBlock(
+        [pawn for id in ["R1", "R2"] for pawn in ludo.model.pawns[ludo.model.get_colour_from_id(id)]
+         if
+         pawn.id == id],
+        "BL0", rigid=True),],
+                  }
 
     # ludo.state = {"game_over":False,"current_player": 3, "dice_roll": [1], "num_more_moves":0, "last_move_id": 0,
     #               ludo.model.config.players[0].name:
@@ -370,9 +374,10 @@ if __name__ == "__main__":
     #                       "BL1", rigid=True),
     #               ],
     #               }
-    # ludo.all_current_moves = ludo.model.all_possible_moves(ludo.state)
-    # print(ludo.state)
-    # print(ludo.all_current_moves)
+    ludo.state = ludo.model.generate_next_state(ludo.state, [["Y1", "P21", "P23"]])
+    ludo.all_current_moves = ludo.model.all_possible_moves(ludo.state)
+    print(ludo.state)
+    print(ludo.all_current_moves)
     # ludo.turn([['R2', 'P39', 'P41']], 1)
     # print(ludo.state)
     # print(ludo.model.all_possible_moves(ludo.state))
