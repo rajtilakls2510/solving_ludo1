@@ -2,6 +2,266 @@ import cython
 from cython.cimports.libc.stdlib import free, calloc
 
 
+Block = cython.struct(pawns=cython.int, pos=cython.short, rigid=cython.bint)
+
+
+StateStruct = cython.struct(
+    n_players=cython.short,
+    game_over=cython.bint,
+    current_player=cython.short,
+    num_more_moves=cython.short,
+    dice_roll=cython.short,
+    last_move_id=cython.short,
+    pawn_pos=cython.p_int,
+    num_blocks=cython.short,
+    all_blocks=Block[16]
+)
+
+NextStateReturn = cython.struct(next_state=StateStruct, num_more_moves=cython.short)
+
+
+@cython.cfunc
+@cython.nogil
+@cython.exceptval(check=False)
+def copy_state(state: StateStruct) -> StateStruct:
+    new_state: StateStruct = state
+    pawn_pos: cython.p_int = cython.cast(cython.p_int, calloc(state.n_players * 93, cython.sizeof(cython.int)))
+    i: cython.Py_ssize_t
+    for i in range(state.n_players * 93):
+        pawn_pos[i] = state.pawn_pos[i]
+    new_state.pawn_pos = pawn_pos
+    return new_state
+
+@cython.cfunc
+@cython.nogil
+@cython.exceptval(check=False)
+def move_single_pawn(state: StateStruct, pawn: cython.int, current_pos: cython.short, destination: cython.short) -> cython.void:
+    new_pawns: cython.int = 0
+    p: cython.int = state.pawn_pos[state.current_player * 93 + current_pos]
+    while p != 0:
+        if (p % 17) != pawn:
+            new_pawns = new_pawns * 17 + (p % 17)
+        p //= 17
+    state.pawn_pos[state.current_player * 93 + current_pos] = new_pawns
+    state.pawn_pos[state.current_player * 93 + destination] = state.pawn_pos[state.current_player * 93 + destination] * 17 + pawn
+
+
+@cython.cfunc
+@cython.nogil
+@cython.exceptval(check=False)
+def find_pawn_in_agg(pawns: cython.int, pawn: cython.int) -> cython.bint:
+    while pawns != 0:
+        if pawns % 17 == pawn:
+            return True
+        pawns //= 17
+    return False
+
+@cython.cfunc
+@cython.nogil
+@cython.exceptval(check=False)
+def check_pawns_same(pawns1: cython.int, pawns2: cython.int) -> cython.bint:
+    p1: cython.int = pawns1
+    while p1 != 0:
+        if not find_pawn_in_agg(pawns2, p1 % 17):
+            return False
+        p1 //= 17
+    return True
+
+
+@cython.cfunc
+@cython.nogil
+@cython.exceptval(check=False)
+def replace_pawn_in_aggregate(pawns: cython.int, pawn_to_replace: cython.int, pawn_to_be_replaced_with: cython.int) -> cython.int:
+    p1: cython.int = 0
+    while pawns != 0:
+        if (pawns % 17) == pawn_to_replace:
+            pawns = (pawns // 17) * 17 + pawn_to_be_replaced_with
+            break
+        else:
+            p1 = p1 * 17 + pawns % 17
+        pawns //= 17
+    while p1 != 0:
+        pawns = pawns * 17 + p1 % 17
+        p1 //= 17
+    return pawns
+
+
+
+
+@cython.cfunc
+@cython.nogil
+@cython.exceptval(check=False)
+def add_block(state: StateStruct, pawns: cython.int, pos: cython.short, rigid: cython.bint) -> StateStruct:
+    state.all_blocks[state.num_blocks] = Block(pawns=pawns, pos=pos, rigid=rigid)
+    state.num_blocks += 1
+    return state
+
+
+@cython.cfunc
+@cython.nogil
+@cython.exceptval(check=False)
+def remove_block(state: StateStruct, index: cython.Py_ssize_t) -> StateStruct:
+    state.num_blocks -= 1
+    state.all_blocks[index] = state.all_blocks[state.num_blocks]
+    return state
+
+
+@cython.cfunc
+@cython.nogil
+@cython.exceptval(check=False)
+def generate_next_state_inner(state: StateStruct, roll: cython.short, current_pos: cython.short, pawn: cython.int, colour_tracks: cython.p_short, stars: cython.p_short, final_pos: cython.p_short) -> NextStateReturn:
+    state: StateStruct = copy_state(state)
+    num_more_moves: cython.short = 0
+    current_player: cython.short = state.current_player
+    # If single pawn, find next position and update it
+    if pawn <= 16:
+        colour: cython.short = (pawn - 1) // 4 + 1
+        index: cython.short = -6
+        i: cython.short
+        for i in range(57):
+            if colour_tracks[colour * 57 + i] == current_pos:
+                index = i
+        destination: cython.short = colour_tracks[colour * 57 + index + roll]
+
+        move_single_pawn(state, pawn, current_pos, destination)
+
+        # If pawn is in a block, dissolve the block, leave the other pawn in old position
+        i: cython.Py_ssize_t
+        for i in range(state.num_blocks):
+            block: Block = state.all_blocks[i]
+            if find_pawn_in_agg(block.pawns, pawn):
+                state = remove_block(state, i)
+                break
+
+        # If at current position two pawns are present and current position is not base star, block them up (non-rigid)
+        if state.pawn_pos[state.current_player * 93 + current_pos] > 16 and stars[current_pos] != 2:
+            new_pawns: cython.int = 0
+            p: cython.int = state.pawn_pos[state.current_player * 93 + current_pos]
+            i = 0
+            while i < 2:
+                new_pawns = new_pawns * 17 + (p % 17)
+                p //= 17
+                i += 1
+            state = add_block(state, new_pawns, current_pos, False)
+
+        # If another single pawn of other player is present at destination position (except stars), capture it by sending it back to its base
+        if stars[destination] == 0:
+            player: cython.short
+            for player in range(state.n_players):
+                if player != current_player:
+                    pawn_to_capture: cython.int = 0
+                    p: cython.int = state.pawn_pos[player * 93 + destination]
+                    i: cython.Py_ssize_t
+                    while p != 0:
+                        for i in range(state.num_blocks):
+                            if state.all_blocks[i].pos == destination:
+                                if not find_pawn_in_agg(state.all_blocks[i].pawns, p % 17):
+                                    pawn_to_capture = p % 17
+                                    break
+                        p //= 17
+                    if pawn_to_capture != 0:
+                        move_single_pawn(state, pawn_to_capture, destination, pawn_to_capture)
+                        num_more_moves += 1
+                        break
+
+        # If another single pawn of same player is present at destination position, block it with other pawn by default except the base star positions and finale position
+        if stars[destination] < 2 and final_pos[destination] == 0 and state.pawn_pos[current_player * 93 + destination] > 16:
+            state = add_block(state, state.pawn_pos[current_player * 93 + destination], destination, False)
+
+        # If destination is finale and not all other pawns in finale position, give another move
+        if final_pos[destination] == 1:
+            i: cython.short
+            for i in range(93):
+                if i != destination and state.pawn_pos[current_player * 93 + destination] > 0:
+                    num_more_moves += 1
+                    break
+    else:
+        colour: cython.short = (pawn % 17 - 1) // 4 + 1
+        index: cython.short = -6
+        i: cython.short
+        for i in range(57):
+            if colour_tracks[colour * 57 + i] == current_pos:
+                index = i
+        destination: cython.short = colour_tracks[colour * 57 + index + roll // 2]
+
+        # If moving out of a base star, check whether the block is present or not. Make a block if not present.
+        block_index: cython.short
+        if stars[current_pos] == 2:
+            state = add_block(state, pawn, current_pos, False)
+            block_index = state.num_blocks - 1
+        else:
+            block_index = -1
+            i: cython.short
+            for i in range(state.num_blocks):
+                if check_pawns_same(state.all_blocks[i].pawns, pawn):
+                    block_index = i
+                    break
+            if block_index == -1:
+                pawn_to_replace: cython.int = 0
+                pawn_to_be_kept: cython.int = 0
+                p: cython.int = pawn
+                while p != 0:
+                    for i in range(state.num_blocks):
+                        if find_pawn_in_agg(state.all_blocks[i].pawns, p % 17):
+                            block_index = i
+                            pawn_to_be_kept = p % 17
+                            break
+                    else:
+                        pawn_to_replace = p % 17
+                        break
+                    p //= 17
+                pawn_to_be_replaced_with: cython.int
+                p = state.all_blocks[block_index].pawns
+                while p != 0:
+                    if p % 17 != pawn_to_be_kept:
+                        pawn_to_be_replaced_with = p % 17
+                        break
+                    p //= 17
+                state.all_blocks[block_index].pawns = replace_pawn_in_aggregate(state.all_blocks[block_index].pawns, pawn_to_replace, pawn_to_be_replaced_with)
+
+        state.all_blocks[block_index].pos = destination
+        p: cython.int = state.all_blocks[block_index].pawns
+        while p != 0:
+            move_single_pawn(state, p % 17, current_pos, destination)
+            p //= 17
+
+        # If another Block pawn of other player is present at destination position (except stars), capture them by breaking the block and sending them back to their respective bases
+        if stars[destination] == 0:
+            player: cython.short
+            for player in range(state.n_players):
+                if player != state.current_player and state.pawn_pos[player * 93 + destination] > 16:
+                    i: cython.short
+                    for i in range(state.num_blocks):
+                        if state.all_blocks[i].pos == destination and find_pawn_in_agg(state.pawn_pos[player * 93 + destination], state.all_blocks[i].pawns % 17):
+                            p: cython.int = state.all_blocks[i].pawns
+                            state = remove_block(state, i)
+                            while p != 0:
+                                move_single_pawn(state, p % 17, destination, p % 17)
+                                p //= 17
+                            num_more_moves += 2
+                            break
+
+        # If destination is base or finale position, break the block into single pawns
+        if stars[destination] == 2 or final_pos[destination] == 1:
+            state = remove_block(state, block_index)
+        # Elif destination is an intermediate star, make the block not rigid
+        elif stars[destination] == 1:
+            state.all_blocks[block_index].rigid = False
+        # Else, make the block rigid
+        else:
+            state.all_blocks[block_index].rigid = True
+
+        # If destination is finale and not all other pawns in finale position, give two more moves
+        if final_pos[destination] == 1:
+            i: cython.short
+            for i in range(93):
+                if i != destination and state.pawn_pos[current_player * 93 + destination] > 0:
+                    num_more_moves += 2
+                    break
+
+    return NextStateReturn(next_state=state, num_more_moves=num_more_moves)
+
+
 @cython.cclass
 class GameConfig:
     n_players = cython.declare(cython.short, visibility='public')
@@ -96,7 +356,8 @@ class LudoModel:
             self.colour_tracks[4 * 57 + i + 51] = cython.cast(cython.short, i + 87)
 
         for i in range(93):
-            self.stars[i] = 1 if i in [18, 26, 31, 39, 44, 52, 57, 65] else 0
+            self.stars[i] = 1 if i in [26, 39, 52, 65] else 0
+            self.stars[i] = 2 if i in [18, 31, 44, 57] else 0
             self.final_pos[i] = 1 if i in [74, 80, 86, 92] else 0
 
     def __dealloc__(self):
@@ -106,25 +367,11 @@ class LudoModel:
         free(self.colour_tracks)
 
 
-Block = cython.struct(pawns=cython.short, pos=cython.short, rigid=cython.bint)
-
-
-StateStruct = cython.struct(
-    n_players=cython.short,
-    game_over=cython.bint,
-    current_player=cython.short,
-    num_more_moves=cython.short,
-    dice_roll=cython.short,
-    last_move_id=cython.short,
-    pawn_pos=cython.p_short,
-    num_blocks=cython.short,
-    all_blocks=Block[16]
-)
 
 
 @cython.cfunc
 def create_new_state(n_players: cython.short) -> StateStruct:
-    pawn_pos: cython.p_short = cython.cast(cython.p_short, calloc(n_players * 93, cython.sizeof(cython.short)))
+    pawn_pos: cython.p_int = cython.cast(cython.p_int, calloc(n_players * 93, cython.sizeof(cython.int)))
     state: StateStruct = StateStruct(n_players=n_players, game_over=False, current_player=0, num_more_moves=0, dice_roll=0, last_move_id=0, pawn_pos=pawn_pos, num_blocks=0)
     i: cython.Py_ssize_t
     for i in range(16):
@@ -135,19 +382,6 @@ def create_new_state(n_players: cython.short) -> StateStruct:
 @cython.cfunc
 def free_state(state: StateStruct):
     free(state.pawn_pos)
-
-
-@cython.cfunc
-@cython.nogil
-@cython.exceptval(check=False)
-def copy_state(state: StateStruct) -> StateStruct:
-    new_state: StateStruct = state
-    pawn_pos: cython.p_short = cython.cast(cython.p_short, calloc(state.n_players * 93, cython.sizeof(cython.short)))
-    i: cython.Py_ssize_t
-    for i in range(state.n_players * 93):
-        pawn_pos[i] = state.pawn_pos[i]
-    new_state.pawn_pos = pawn_pos
-    return new_state
 
 
 @cython.cclass
@@ -172,7 +406,7 @@ class State:
         for r in roll:
             dice_roll = dice_roll * 7 + r
 
-        pawn_pos = cython.cast(cython.p_short, calloc(state_dict['n_players'] * 93, cython.sizeof(cython.short)))
+        pawn_pos = cython.cast(cython.p_int, calloc(state_dict['n_players'] * 93, cython.sizeof(cython.int)))
         for key in state_dict.keys():
             if "Player" in key:
                 player_num = int(key[-1])
@@ -187,7 +421,7 @@ class State:
                                          pawn_pos=pawn_pos, num_blocks=len(state_dict["all_blocks"]))
         i: cython.Py_ssize_t
         for i in range(state.num_blocks):
-            pawns = 0
+            pawns: cython.int = 0
             for p in state_dict["all_blocks"][i]["pawns"]:
                 pawns = pawns * 17 + mappings["pawn"].index(p)
             state.all_blocks[i] = Block(pawns=pawns, pos=mappings["pos"].index(state_dict["all_blocks"][i]["pos"]),
@@ -223,7 +457,7 @@ class State:
             pos: cython.short
             for pos in range(1, 93):
                 pawns = []
-                pawn: cython.short = s.pawn_pos[player * 93 + pos]
+                pawn: cython.int = s.pawn_pos[player * 93 + pos]
                 while pawn != 0:
                     pawns.append(mappings["pawn"][pawn % 17])
                     pawn //= 17
@@ -233,7 +467,7 @@ class State:
         i: cython.Py_ssize_t
         for i in range(s.num_blocks):
             pawns = []
-            pawn: cython.short = s.all_blocks[i].pawns
+            pawn: cython.int = s.all_blocks[i].pawns
             while pawn != 0:
                 pawns.append(mappings["pawn"][pawn % 17])
                 pawn //= 17

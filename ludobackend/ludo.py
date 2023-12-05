@@ -370,13 +370,14 @@ class LudoModel:
                 if block is None:
                     i = 0 if pawn[0] in state[current_player.name]["single_pawn_pos"].keys() else 1
                     pawn_to_replace = pawn[i]
-                    pawn_to_be_replaced = pawn[(i+1) % 2]
+                    pawn_to_be_kept = pawn[(i+1) % 2]
                     for b in state["all_blocks"]:
                         block = b
-                        if b.check_pawn_in_block(Pawn(pawn_to_be_replaced, self.get_colour_from_id(pawn_to_be_replaced))):
-                            b.pawns = [p for p in block.pawns if p.id != pawn_to_be_replaced]
+                        if b.check_pawn_in_block(Pawn(pawn_to_be_kept, self.get_colour_from_id(pawn_to_be_kept))):
+                            pawn_to_be_replaced = block.pawns[0] if block.pawns[0].id != pawn_to_be_kept else block.pawns[1]
+                            b.pawns = [p for p in block.pawns if p.id == pawn_to_be_kept]
                             b.pawns.append(Pawn(pawn_to_replace, self.get_colour_from_id(pawn_to_replace)))
-                            state[current_player.name]["single_pawn_pos"][pawn_to_be_replaced] = state[current_player.name]["single_pawn_pos"][pawn_to_replace]
+                            state[current_player.name]["single_pawn_pos"][pawn_to_be_replaced.id] = state[current_player.name]["single_pawn_pos"][pawn_to_replace]
                             state[current_player.name]["single_pawn_pos"].pop(pawn_to_replace)
             block_id = block.id
             state[current_player.name]["block_pawn_pos"][block_id] = destination
