@@ -18,6 +18,7 @@ StateStruct = cython.struct(
 )
 
 NextStateReturn = cython.struct(next_state=StateStruct, num_more_moves=cython.short)
+NextPossiblePawnReturn = cython.struct(pawns=cython.p_int, current_pos=cython.p_short, n=cython.short)
 
 
 @cython.cfunc
@@ -109,6 +110,74 @@ def remove_block(state: StateStruct, index: cython.Py_ssize_t) -> StateStruct:
 @cython.cfunc
 @cython.nogil
 @cython.exceptval(check=False)
+def find_next_possible_pawns(state: StateStruct, stars: cython.p_short, final_pos: cython.p_short) -> NextPossiblePawnReturn:
+    # Collect all next possible pawns
+    current_player: cython.short = state.current_player
+    next_possible_pawns: cython.p_int = cython.cast(cython.p_int, calloc(93 + 16, cython.sizeof(cython.int)))
+    current_pos: cython.p_short = cython.cast(cython.p_short, calloc(93 + 16, cython.sizeof(cython.short)))
+    num: cython.short = 0
+
+    # Single pawn forward
+    i: cython.short
+    for i in range(93):
+        if final_pos[i] == 0:
+            p: cython.int = state.pawn_pos[current_player * 93 + i]
+            while p != 0:
+                j: cython.short
+                for j in range(state.num_blocks):
+                    if state.all_blocks[j].pos == i and not find_pawn_in_agg(state.all_blocks[j].pawns, p % 17):
+                        next_possible_pawns[num] = p % 17
+                        current_pos[num] = i
+                        num += 1
+                        break
+                p //= 17
+
+    # Single pawn forward with block
+    i: cython.short
+    for i in range(93):
+        p1: cython.int = state.pawn_pos[current_player * 93 + i]
+        while p1 > 16:
+            p2: cython.int = p1 // 17
+            while p2 != 0:
+                p1_addable: cython.bint = True
+                p2_addable: cython.bint = True
+                j: cython.short
+                for j in range(state.num_blocks):
+                    if state.all_blocks[j].pos == i:
+                        p1_addable = p1_addable and not find_pawn_in_agg(state.all_blocks[j].pawns, p1 % 17)
+                        p2_addable = p2_addable and (not find_pawn_in_agg(state.all_blocks[j].pawns, p2 % 17) or not state.all_blocks[j].rigid)
+                if p1_addable and p2_addable:
+                    next_possible_pawns[num] = (p1 % 17) * 17 + p2 % 17
+                    current_pos[num] = i
+                    num += 1
+                p2 //= 17
+            p1 //= 17
+
+    # Block pawn forward
+    j: cython.short
+    for j in range(state.num_blocks):
+        if find_pawn_in_agg(state.pawn_pos[current_player * 93 + state.all_blocks[j].pos], state.all_blocks[j].pawns % 17):
+            next_possible_pawns[num] = state.all_blocks[j].pawns
+            current_pos[num] = state.all_blocks[j].pos
+            num += 1
+
+    # Block pawn forward unblocked after star or unrigid block
+    j: cython.short
+    for j in range(state.num_blocks):
+        if (stars[state.all_blocks[j].pos] > 0 or not state.all_blocks[j].rigid) and find_pawn_in_agg(state.pawn_pos[current_player * 93 + state.all_blocks[j].pos],
+                            state.all_blocks[j].pawns % 17):
+            p: cython.int = state.all_blocks[j].pawns
+            while p != 0:
+                next_possible_pawns[num] = p % 17
+                current_pos[num] = state.all_blocks[j].pos
+                num += 1
+                p //= 17
+
+    return NextPossiblePawnReturn(pawns=next_possible_pawns, current_pos=current_pos, n=num)
+
+@cython.cfunc
+@cython.nogil
+@cython.exceptval(check=False)
 def generate_next_state_inner(state: StateStruct, roll: cython.short, current_pos: cython.short, pawn: cython.int, colour_tracks: cython.p_short, stars: cython.p_short, final_pos: cython.p_short) -> NextStateReturn:
     state: StateStruct = copy_state(state)
     num_more_moves: cython.short = 0
@@ -160,7 +229,7 @@ def generate_next_state_inner(state: StateStruct, roll: cython.short, current_po
                                     break
                         p //= 17
                     if pawn_to_capture != 0:
-                        move_single_pawn(state, pawn_to_capture, destination, pawn_to_capture)
+                        move_single_pawn(state, pawn_to_capture, destination, cython.cast(cython.short, pawn_to_capture))
                         num_more_moves += 1
                         break
 
@@ -182,6 +251,7 @@ def generate_next_state_inner(state: StateStruct, roll: cython.short, current_po
         for i in range(57):
             if colour_tracks[colour * 57 + i] == current_pos:
                 index = i
+                break
         destination: cython.short = colour_tracks[colour * 57 + index + roll // 2]
 
         # If moving out of a base star, check whether the block is present or not. Make a block if not present.
@@ -236,7 +306,7 @@ def generate_next_state_inner(state: StateStruct, roll: cython.short, current_po
                             p: cython.int = state.all_blocks[i].pawns
                             state = remove_block(state, i)
                             while p != 0:
-                                move_single_pawn(state, p % 17, destination, p % 17)
+                                move_single_pawn(state, p % 17, destination, cython.cast(cython.short, p % 17))
                                 p //= 17
                             num_more_moves += 2
                             break
