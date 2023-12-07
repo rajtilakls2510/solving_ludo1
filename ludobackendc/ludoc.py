@@ -773,69 +773,6 @@ class GameConfig:
 
 
 @cython.cclass
-class LudoModel:
-    config = cython.declare(GameConfig, visibility="public")
-    stars: cython.p_short
-    final_pos: cython.p_short
-    colour_tracks: cython.p_short
-    colour_bases: cython.p_short
-
-    def __init__(self, config: GameConfig):
-        self.config = config
-        self.stars = cython.cast(cython.p_short, calloc(93, cython.sizeof(cython.short)))
-        self.final_pos = cython.cast(cython.p_short, calloc(93, cython.sizeof(cython.short)))
-        self.colour_bases = cython.cast(cython.p_short, calloc(5 * 4, cython.sizeof(cython.short)))
-        self.colour_tracks = cython.cast(cython.p_short, calloc(5 * 57, cython.sizeof(cython.short)))
-        i: cython.Py_ssize_t
-
-        # RED
-        for i in range(4):
-            self.colour_bases[1 * 4 + i] = cython.cast(cython.short, i + 1)
-        for i in range(52):
-            self.colour_tracks[1 * 57 + i] = cython.cast(cython.short, i + 18)
-        for i in range(6):
-            self.colour_tracks[1 * 57 + i + 51] = cython.cast(cython.short, i + 69)
-
-        # GREEN
-        for i in range(4):
-            self.colour_bases[2 * 4 + i] = cython.cast(cython.short, i + 5)
-        for i in range(52):
-            self.colour_tracks[2 * 57 + i] = cython.cast(cython.short, i + 31) if i + 31 <= 68 else cython.cast(
-                cython.short, i - 21)
-        for i in range(6):
-            self.colour_tracks[2 * 57 + i + 51] = cython.cast(cython.short, i + 75)
-
-        # YELLOW
-        for i in range(4):
-            self.colour_bases[3 * 4 + i] = cython.cast(cython.short, i + 9)
-        for i in range(52):
-            self.colour_tracks[3 * 57 + i] = cython.cast(cython.short, i + 44) if i + 44 <= 68 else cython.cast(
-                cython.short, i - 8)
-        for i in range(6):
-            self.colour_tracks[3 * 57 + i + 51] = cython.cast(cython.short, i + 81)
-
-        # BLUE
-        for i in range(4):
-            self.colour_bases[4 * 4 + i] = cython.cast(cython.short, i + 13)
-        for i in range(52):
-            self.colour_tracks[4 * 57 + i] = cython.cast(cython.short, i + 57) if i + 57 <= 68 else cython.cast(
-                cython.short, i + 5)
-        for i in range(6):
-            self.colour_tracks[4 * 57 + i + 51] = cython.cast(cython.short, i + 87)
-
-        for i in range(93):
-            self.stars[i] = 1 if i in [26, 39, 52, 65] else 0
-            self.stars[i] = 2 if i in [18, 31, 44, 57] else 0
-            self.final_pos[i] = 1 if i in [74, 80, 86, 92] else 0
-
-    def __dealloc__(self):
-        free(self.stars)
-        free(self.final_pos)
-        free(self.colour_bases)
-        free(self.colour_tracks)
-
-
-@cython.cclass
 class State:
     state_struct: StateStruct
 
@@ -934,6 +871,112 @@ class State:
 
     def __dealloc__(self):
         free_state(self.state_struct)
+
+
+@cython.cclass
+class LudoModel:
+    config = cython.declare(GameConfig, visibility="public")
+    stars: cython.p_short
+    final_pos: cython.p_short
+    colour_tracks: cython.p_short
+    colour_bases: cython.p_short
+
+    def __init__(self, config: GameConfig):
+        self.config = config
+        self.stars = cython.cast(cython.p_short, calloc(93, cython.sizeof(cython.short)))
+        self.final_pos = cython.cast(cython.p_short, calloc(93, cython.sizeof(cython.short)))
+        self.colour_bases = cython.cast(cython.p_short, calloc(5 * 4, cython.sizeof(cython.short)))
+        self.colour_tracks = cython.cast(cython.p_short, calloc(5 * 57, cython.sizeof(cython.short)))
+        i: cython.Py_ssize_t
+
+        # RED
+        for i in range(4):
+            self.colour_bases[1 * 4 + i] = cython.cast(cython.short, i + 1)
+        for i in range(52):
+            self.colour_tracks[1 * 57 + i] = cython.cast(cython.short, i + 18)
+        for i in range(6):
+            self.colour_tracks[1 * 57 + i + 51] = cython.cast(cython.short, i + 69)
+
+        # GREEN
+        for i in range(4):
+            self.colour_bases[2 * 4 + i] = cython.cast(cython.short, i + 5)
+        for i in range(52):
+            self.colour_tracks[2 * 57 + i] = cython.cast(cython.short, i + 31) if i + 31 <= 68 else cython.cast(
+                cython.short, i - 21)
+        for i in range(6):
+            self.colour_tracks[2 * 57 + i + 51] = cython.cast(cython.short, i + 75)
+
+        # YELLOW
+        for i in range(4):
+            self.colour_bases[3 * 4 + i] = cython.cast(cython.short, i + 9)
+        for i in range(52):
+            self.colour_tracks[3 * 57 + i] = cython.cast(cython.short, i + 44) if i + 44 <= 68 else cython.cast(
+                cython.short, i - 8)
+        for i in range(6):
+            self.colour_tracks[3 * 57 + i + 51] = cython.cast(cython.short, i + 81)
+
+        # BLUE
+        for i in range(4):
+            self.colour_bases[4 * 4 + i] = cython.cast(cython.short, i + 13)
+        for i in range(52):
+            self.colour_tracks[4 * 57 + i] = cython.cast(cython.short, i + 57) if i + 57 <= 68 else cython.cast(
+                cython.short, i + 5)
+        for i in range(6):
+            self.colour_tracks[4 * 57 + i + 51] = cython.cast(cython.short, i + 87)
+
+        for i in range(93):
+            self.stars[i] = 1 if i in [26, 39, 52, 65] else 0
+            self.stars[i] = 2 if i in [18, 31, 44, 57] else 0
+            self.final_pos[i] = 1 if i in [74, 80, 86, 92] else 0
+
+    def generate_next_state(self, state: State, move):
+        pawns: cython.p_int = cython.cast(cython.p_int, calloc(len(move), cython.sizeof(cython.int)))
+        current_pos: cython.p_short = cython.cast(cython.p_short, calloc(len(move), cython.sizeof(cython.short)))
+        destinations: cython.p_short = cython.cast(cython.p_short, calloc(len(move), cython.sizeof(cython.short)))
+        move_struct: MoveStruct = MoveStruct(n_rolls=len(move), pawns=pawns, current_positions=current_pos, destinations=destinations)
+        index: cython.short
+        for index, (pawn, current_pos, destination) in enumerate(move):
+            move_struct.pawns[index] = pawn
+            move_struct.current_positions[index] = current_pos
+            move_struct.destinations[index] = destination
+
+        next_state: StateStruct = generate_next_state(state.state_struct, move_struct, self.colour_tracks, self.stars, self.final_pos, self.config.player_colours)
+        ns = State()
+        ns.state_struct = next_state
+        free_move(move_struct)
+        return ns
+
+    def all_possible_moves(self, state: State):
+        all_moves_returned: AllPossibleMovesReturn = all_possible_moves(state.state_struct, self.stars, self.final_pos, self.colour_tracks, self.config.player_colours)
+        possible_rolls = [[i] for i in range(1, 6)] + [[6, i] for i in range(1, 6)] + [[6, 6, i] for i in range(1, 6)]
+        possible_moves = []
+        for roll in possible_rolls:
+            validated_moves = []
+            num_moves: cython.short = all_moves_returned.roll_num_moves[sum(roll)]
+            i: cython.short
+            for i in range(num_moves):
+                move = []
+                move_struct: MoveStruct = all_moves_returned.roll_moves[sum(roll)][i]
+                j: cython.short
+                for j in range(move_struct.n_rolls):
+                    move.append([move_struct.pawns[j], move_struct.current_positions[j], move_struct.destinations[j]])
+                validated_moves.append(move)
+            possible_moves.append({"roll": roll, "moves": validated_moves})
+        possible_moves.append({"roll": [6, 6, 6], "moves": []})
+
+        i: cython.short
+        for i in range(19):
+            free(all_moves_returned.roll_moves[i])
+        free(all_moves_returned.roll_moves)
+        free(all_moves_returned.roll_num_moves)
+
+        return possible_moves
+
+    def __dealloc__(self):
+        free(self.stars)
+        free(self.final_pos)
+        free(self.colour_bases)
+        free(self.colour_tracks)
 
 
 @cython.cclass
