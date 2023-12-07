@@ -231,7 +231,7 @@ class LudoModel:
             index = track.index(position)
             if index + roll >= len(track):
                 return False, None
-            # Pawns cannot jump over other pawn blocks except pos is a home star
+            # Pawns cannot jump over other pawn blocks except pos is a base star
             other_players = [player for idx, player in enumerate(self.config.players) if idx != state["current_player"]]
             for i in range(index + 1, index + roll):
                 pos = track[i]
@@ -239,7 +239,7 @@ class LudoModel:
                     for _, block_pos in state[other_player.name]["block_pawn_pos"].items():
                         if pos == block_pos and pos not in self.stars[:4]:
                             return False, None
-            # Pawns cannot move to a destination if the same player's one block and one single pawn is present except home star
+            # Pawns cannot move to a destination if the same player's one block and one single pawn is present except base star
             destination = track[index + roll]
             for _, block_pos in state[current_player.name]["block_pawn_pos"].items():
                 if destination == block_pos and destination not in self.stars[:4]:
@@ -267,7 +267,7 @@ class LudoModel:
             if pawn1_track[pawn1_track.index(position) + roll // 2] != pawn2_track[
                 pawn2_track.index(position) + roll // 2]:
                 return False, None
-            # Block Pawns cannot jump over other pawn blocks except pos is a home star
+            # Block Pawns cannot jump over other pawn blocks except pos is a base star
             other_players = [player for idx, player in enumerate(self.config.players) if idx != state["current_player"]]
             for i in range(pawn1_index + 1, pawn1_index + roll // 2):
                 pos = pawn1_track[i]
