@@ -23,9 +23,13 @@ NextStateReturn = cython.struct(next_state=StateStruct, num_more_moves=cython.sh
 NextPossiblePawnReturn = cython.struct(pawns=cython.p_int, current_pos=cython.p_short, n=cython.short)
 ValidateMoveReturn = cython.struct(valid=cython.bint, destination=cython.short)
 
-AllPossibleMovesReturn = cython.struct(roll_num_moves=cython.p_short, roll_moves=cython.pointer(MoveStruct))
+RollMovesReturn = cython.struct(num_moves=cython.short, moves=cython.pointer(MoveStruct))
+AllPossibleMovesReturn = cython.struct(roll_num_moves=cython.p_short, roll_moves=cython.pointer(cython.pointer(MoveStruct)))
+
 
 @cython.cfunc
+@cython.nogil
+@cython.exceptval(check=False)
 def create_new_state(n_players: cython.short) -> StateStruct:
     pawn_pos: cython.p_int = cython.cast(cython.p_int, calloc(n_players * 93, cython.sizeof(cython.int)))
     state: StateStruct = StateStruct(n_players=n_players, game_over=False, current_player=0, num_more_moves=0,
@@ -37,6 +41,8 @@ def create_new_state(n_players: cython.short) -> StateStruct:
 
 
 @cython.cfunc
+@cython.nogil
+@cython.exceptval(check=False)
 def create_new_move(n_rolls: cython.short) -> MoveStruct:
     pawns: cython.p_int = cython.cast(cython.p_int, calloc(n_rolls, cython.sizeof(cython.int)))
     current_positions: cython.p_short = cython.cast(cython.p_short, calloc(n_rolls, cython.sizeof(cython.short)))
@@ -46,6 +52,8 @@ def create_new_move(n_rolls: cython.short) -> MoveStruct:
 
 
 @cython.cfunc
+@cython.nogil
+@cython.exceptval(check=False)
 def create_move_tree_node(pawn: cython.int, current_pos: cython.short, destination: cython.short) -> cython.pointer(AllMovesTreeNode):
     node: cython.pointer(AllMovesTreeNode) = cython.cast(cython.pointer(AllMovesTreeNode), malloc(cython.sizeof(AllMovesTreeNode)))
     node.pawn = pawn
@@ -57,22 +65,34 @@ def create_move_tree_node(pawn: cython.int, current_pos: cython.short, destinati
 
 
 @cython.cfunc
+@cython.nogil
+@cython.exceptval(check=False)
 def free_state(state: StateStruct) -> cython.void:
     free(state.pawn_pos)
 
 
 @cython.cfunc
+@cython.nogil
+@cython.exceptval(check=False)
 def free_move(move: MoveStruct) -> cython.void:
     free(move.pawns)
     free(move.current_positions)
     free(move.destinations)
 
 
-# @cython.cfunc
-# def free_move_tree_node(node: cython.pointer(AllMovesTreeNode)) -> cython.void:
-#     if node.children != cython.NULL:
-#         free(node.children)
-#     free(node)
+@cython.cfunc
+@cython.nogil
+@cython.exceptval(check=False)
+def free_tree(root: cython.pointer(AllMovesTreeNode)) -> cython.void:
+    if root.child != cython.NULL:
+        free_tree(root.child)
+    else:
+        prev_node: cython.pointer(AllMovesTreeNode) = root
+        while prev_node != cython.NULL:
+            node: cython.pointer(AllMovesTreeNode) = prev_node.next
+            free(prev_node)
+            prev_node = node
+
 
 @cython.cfunc
 @cython.nogil
@@ -582,12 +602,12 @@ def generate_next_state(state: StateStruct, move: MoveStruct, colour_tracks: cyt
 @cython.exceptval(check=False)
 def generate_and_validate_moves(state: StateStruct, roll: cython.short, selected_pawns: cython.pointer(AllMovesTreeNode), stars: cython.p_short, final_pos: cython.p_short, colour_tracks: cython.p_short, player_colours: cython.p_short) -> cython.void:
     state = copy_state(state)
-    if roll > 6:
+    if roll > 0:
         # find out all possible movable pawns
         next_possible_pawns: NextPossiblePawnReturn = find_next_possible_pawns(state, stars, final_pos)
         # Validate whether moving each pawn is possible or not for roll[0]
         i: cython.short
-        prev_node: AllMovesTreeNode = cython.NULL
+        prev_node: cython.pointer(AllMovesTreeNode) = cython.NULL
         for i in range(next_possible_pawns.n):
             pawn: cython.int = next_possible_pawns.pawns[i]
             current_pos: cython.short = next_possible_pawns.current_pos[i]
@@ -595,7 +615,7 @@ def generate_and_validate_moves(state: StateStruct, roll: cython.short, selected
 
             # If valid move, generate new state by moving pawn and recursively find out next valid pawn movements for roll[1:]
             if validation_result.valid:
-                node: AllMovesTreeNode = create_move_tree_node(pawn, current_pos, validation_result.destination)
+                node: cython.pointer(AllMovesTreeNode) = create_move_tree_node(pawn, current_pos, validation_result.destination)
                 if selected_pawns.child == cython.NULL:
                     selected_pawns.child = node
                 if prev_node != cython.NULL:
@@ -620,14 +640,94 @@ def generate_and_validate_moves(state: StateStruct, roll: cython.short, selected
     free_state(state)
 
 
-# @cython.cfunc
-# @cython.nogil
-# @cython.exceptval(check=False)
-# def all_possible_moves(state: StateStruct, stars: cython.p_short, final_pos: cython.p_short, colour_tracks: cython.p_short, player_colours: cython.p_short):
-#     i: cython.short
-#     for i in range(1, 7):
-#
-#         if
+@cython.cfunc
+@cython.nogil
+@cython.exceptval(check=False)
+def calculate_total_moves(root: cython.pointer(AllMovesTreeNode)) -> cython.short:
+    total: cython.short = 0
+    node: cython.pointer(AllMovesTreeNode) = root
+    while node != cython.NULL:
+        if node.child == cython.NULL:
+            total += 1
+        else:
+            total += calculate_total_moves(node.child)
+        node = node.next
+    return total
+
+
+@cython.cfunc
+@cython.nogil
+@cython.exceptval(check=False)
+def place_move_structs(moves: cython.pointer(MoveStruct), start: cython.short, root: cython.pointer(AllMovesTreeNode), level: cython.short) -> cython.short:
+    node: cython.pointer(AllMovesTreeNode) = root
+    index: cython.short = start
+    while node != cython.NULL:
+        if node.child == cython.NULL and level > 0:
+            pawns: cython.p_int = cython.cast(cython.p_int, calloc(level, cython.sizeof(cython.int)))
+            current_pos: cython.p_short = cython.cast(cython.p_short, calloc(level, cython.sizeof(cython.short)))
+            destinations: cython.p_short = cython.cast(cython.p_short, calloc(level, cython.sizeof(cython.short)))
+            move_struct: MoveStruct = MoveStruct(n_rolls=level, pawns=pawns, current_positions=current_pos, destinations=destinations)
+            move_struct.pawns[level - 1] = node.pawn
+            move_struct.current_positions[level - 1] = node.current_pos
+            move_struct.destinations[level - 1] = node.destination
+            moves[index] = move_struct
+            index += 1
+        else:
+            prev_index: cython.short = index
+            index = place_move_structs(moves, prev_index, node.child, level + 1)
+            i: cython.short
+            for i in range(prev_index, index):
+                moves[i].pawns[level - 1] = node.pawn
+                moves[i].current_positions[level - 1] = node.current_pos
+                moves[i].destinations[level - 1] = node.destination
+
+        node = node.next
+    return index
+
+
+@cython.cfunc
+@cython.nogil
+@cython.exceptval(check=False)
+def convert_validated_moves(state: StateStruct, roll: cython.short, stars: cython.p_short, final_pos: cython.p_short, colour_tracks: cython.p_short, player_colours: cython.p_short) -> RollMovesReturn:
+    root: cython.pointer(AllMovesTreeNode) = create_move_tree_node(0, 0, 0)
+    generate_and_validate_moves(state, roll, root, stars, final_pos, colour_tracks, player_colours)
+    num_moves: cython.short = calculate_total_moves(root)
+    moves: cython.pointer(MoveStruct) = cython.cast(cython.pointer(MoveStruct), calloc(num_moves, cython.sizeof(MoveStruct)))
+    place_move_structs(moves, 0, root, 0)
+    free_tree(root)
+    return RollMovesReturn(num_moves=num_moves, moves=moves)
+
+
+@cython.cfunc
+@cython.nogil
+@cython.exceptval(check=False)
+def all_possible_moves(state: StateStruct, stars: cython.p_short, final_pos: cython.p_short, colour_tracks: cython.p_short, player_colours: cython.p_short) -> AllPossibleMovesReturn:
+    # Calculates all possible moves by a player before dice roll (Note rolls returned is in addition format instead of mod format)
+    roll_num_moves: cython.p_short = cython.cast(cython.p_short, calloc(19, cython.sizeof(cython.short)))
+    roll_moves: cython.pointer(cython.pointer(MoveStruct)) = cython.cast(cython.pointer(cython.pointer(MoveStruct)), calloc(19, cython.sizeof(cython.pointer(MoveStruct))))
+    return_struct: AllPossibleMovesReturn = AllPossibleMovesReturn(roll_num_moves=roll_num_moves, roll_moves=roll_moves)
+    i: cython.short
+    for i in range(1, 7):
+        if i == 6:
+            j: cython.short
+            for j in range(1, 7):
+                if j == 6:
+                    k: cython.short
+                    for k in range(1, 6):
+                        moves_returned: RollMovesReturn = convert_validated_moves(state, (k * 7 + j) * 7 + i, stars, final_pos, colour_tracks, player_colours)
+                        return_struct.roll_num_moves[i+j+k] = moves_returned.num_moves
+                        return_struct.roll_moves[i+j+k] = moves_returned.moves
+                else:
+                    moves_returned: RollMovesReturn = convert_validated_moves(state, j * 7 + i, stars,
+                                                                              final_pos, colour_tracks, player_colours)
+                    return_struct.roll_num_moves[i + j] = moves_returned.num_moves
+                    return_struct.roll_moves[i + j] = moves_returned.moves
+        else:
+            moves_returned: RollMovesReturn = convert_validated_moves(state, i, stars, final_pos,
+                                                                      colour_tracks, player_colours)
+            return_struct.roll_num_moves[i] = moves_returned.num_moves
+            return_struct.roll_moves[i] = moves_returned.moves
+    return return_struct
 
 
 @cython.cclass

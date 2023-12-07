@@ -319,7 +319,7 @@ if __name__ == "__main__":
 
     ludo.state = {"game_over":False,"current_player": 0, "dice_roll": [2], "num_more_moves":1, "last_move_id": 0,
                       ludo.model.config.players[0].name:
-                          {"single_pawn_pos": {"R3": "RH6","R4": "P35", "Y1": "P20","Y2": "YH6","Y3": "P21","Y4": "YH6"},
+                          {"single_pawn_pos": {"R3": "RH6","R4": "P52", "Y1": "P20","Y2": "YH6","Y3": "P23","Y4": "YH6"},
                                                     "block_pawn_pos": {"BL0": "P23"}},
                       ludo.model.config.players[1].name: {
                           "single_pawn_pos": {"G1": "GH6", "G2": "P6", "G3": "GH6", "G4": "GB4", "B1": "BB1", "B2": "BH6","B3": "BH6","B4": "BH1"},
@@ -374,14 +374,14 @@ if __name__ == "__main__":
     #                       "BL1", rigid=True),
     #               ],
     #               }
-    ludo.state = ludo.model.generate_next_state(ludo.state, [["Y3", "P21", "P23"]])
+    ludo.state = ludo.model.generate_next_state(ludo.state, [["R2", "P23", "P25"]])
     print(ludo.state)
-    ludo.all_current_moves = ludo.model.all_possible_moves(ludo.state)
+    # ludo.all_current_moves = ludo.model.all_possible_moves(ludo.state)
     # print(ludo.all_current_moves)
-    ludo.state = ludo.model.generate_next_state(ludo.state, [[["Y3", "R1"], "P23", "P24"]])
-    print(ludo.state)
-    ludo.all_current_moves = ludo.model.all_possible_moves(ludo.state)
-    print(ludo.all_current_moves)
+    # ludo.state = ludo.model.generate_next_state(ludo.state, [[["Y3", "R1"], "P23", "P24"]])
+    # print(ludo.state)
+    # ludo.all_current_moves = ludo.model.all_possible_moves(ludo.state)
+    # print(ludo.all_current_moves)
     # ludo.turn([['R2', 'P39', 'P41']], 1)
     # print(ludo.state)
     # print(ludo.model.all_possible_moves(ludo.state))
