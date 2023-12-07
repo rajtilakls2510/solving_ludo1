@@ -1,3 +1,4 @@
+# cython: cdivision = True
 import cython
 from cython.cimports.libc.stdlib import free, calloc
 
@@ -15,6 +16,8 @@ StateStruct = cython.struct(
     all_blocks=Block[16]
 )
 
+MoveStruct = cython.struct(n_rolls=cython.short, pawns=cython.p_int, current_positions=cython.p_short, destinations=cython.p_short)
+
 NextStateReturn = cython.struct(next_state=StateStruct, num_more_moves=cython.short)
 NextPossiblePawnReturn = cython.struct(pawns=cython.p_int, current_pos=cython.p_short, n=cython.short)
 ValidateMoveReturn = cython.struct(valid=cython.bint, destination=cython.short)
@@ -31,6 +34,24 @@ def copy_state(state: StateStruct) -> StateStruct:
         pawn_pos[i] = state.pawn_pos[i]
     new_state.pawn_pos = pawn_pos
     return new_state
+
+
+@cython.cfunc
+@cython.nogil
+@cython.exceptval(check=False)
+def copy_move(move: MoveStruct) -> MoveStruct:
+    pawns: cython.p_int = cython.cast(cython.p_int, calloc(move.n_rolls, cython.sizeof(cython.int)))
+    current_positions: cython.p_short = cython.cast(cython.p_short, calloc(move.n_rolls, cython.sizeof(cython.short)))
+    destinations: cython.p_short = cython.cast(cython.p_short, calloc(move.n_rolls, cython.sizeof(cython.short)))
+    i: cython.short
+    for i in range(move.n_rolls):
+        pawns[i] = move.pawns[i]
+        current_positions[i] = move.current_positions[i]
+        destinations[i] = move.destinations[i]
+    move.pawns = pawns
+    move.current_positions = current_positions
+    move.destinations = destinations
+    return move
 
 
 @cython.cfunc
@@ -429,6 +450,81 @@ def generate_next_state_inner(state: StateStruct, roll: cython.short, current_po
     return NextStateReturn(next_state=state, num_more_moves=num_more_moves)
 
 
+@cython.cfunc
+@cython.nogil
+@cython.exceptval(check=False)
+def check_block_no_moves_player(state: StateStruct, player: cython.short, player_colours: cython.p_short) -> cython.bint:
+    # Checks whether a heterogeneous block is present at the top of the home stretch from which a player cannot take any move
+    blocked: cython.short[5]
+    blocked[0] = 0
+    blocked[1] = 68
+    blocked[2] = 29
+    blocked[3] = 42
+    blocked[4] = 55
+    c: cython.short = player_colours[player]
+    while c != 0:
+        pos: cython.short = blocked[c % 5]
+        i: cython.short
+        for i in range(state.num_blocks):
+            pawn_of_c_found: cython.bint = False
+            pawn_diff_c_found: cython.bint = False
+            p: cython.int = state.all_blocks[i].pawns
+            while p != 0:
+                pawn_of_c_found = pawn_of_c_found or ((p % 17 - 1) // 4 + 1 == c % 5)
+                pawn_diff_c_found = pawn_diff_c_found or ((p % 17 - 1) // 4 + 1 != c % 5)
+                p //= 17
+            # If a block of the particular pawn is found, it is heterogeneous and rigid and in top of home stretch, then the player will have no moves
+            if state.all_blocks[i].pos == pos and state.all_blocks[i].rigid and pawn_of_c_found and pawn_diff_c_found:
+                return True
+        c //= 5
+    return False
+
+
+@cython.cfunc
+@cython.nogil
+@cython.exceptval(check=False)
+def check_available_moves(state: StateStruct, player: cython.short, final_pos: cython.p_short, player_colours: cython.p_short) -> cython.bint:
+    if check_block_no_moves_player(state, player, player_colours):
+        return False
+    i: cython.short
+    for i in range(93):
+        if final_pos[i] != 1 and state.pawn_pos[player * 93 + i] > 0:
+            return True
+    return False
+
+
+@cython.cfunc
+@cython.nogil
+@cython.exceptval(check=False)
+def generate_next_state(state: StateStruct, move: MoveStruct, colour_tracks: cython.p_short, stars: cython.p_short, final_pos: cython.p_short, player_colours: cython.p_short) -> StateStruct:
+    state: StateStruct = copy_state(state)
+    if move.n_rolls > 0:
+        total_moves: cython.short = state.num_more_moves
+        i: cython.short
+        r: cython.short = state.dice_roll
+        for i in range(move.n_rolls):
+            next_state_return: NextStateReturn = generate_next_state_inner(state, r % 7, move.current_positions[i], move.pawns[i], colour_tracks, stars, final_pos)
+            state = next_state_return.next_state
+            total_moves += next_state_return.num_more_moves
+            r //= 7
+        state.num_more_moves = total_moves
+    # Update last move_id
+    state.last_move_id += 1
+    # Change the turn
+    if state.num_more_moves == 0:
+        state.current_player = (state.current_player + 1) % state.n_players
+    # CHeck game over or not by evaluating if all other players have completed
+    game_over: cython.bint = True
+    player: cython.short
+    for player in range(state.n_players):
+        if player != state.current_player and check_available_moves(state, player, final_pos, player_colours):
+            game_over = False
+    state.game_over = game_over
+    if state.num_more_moves > 0:
+        state.num_more_moves -= 1
+    return state
+
+
 @cython.cclass
 class GameConfig:
     n_players = cython.declare(cython.short, visibility='public')
@@ -544,12 +640,24 @@ def create_new_state(n_players: cython.short) -> StateStruct:
         state.all_blocks[i] = Block(pawns=0, pos=cython.cast(cython.short, i), rigid=(i % 2 == 0))
     return state
 
+@cython.cfunc
+def create_new_move(n_rolls: cython.short) -> MoveStruct:
+    pawns: cython.p_int = cython.cast(cython.p_int, calloc(n_rolls, cython.sizeof(cython.int)))
+    current_positions: cython.p_short = cython.cast(cython.p_short, calloc(n_rolls, cython.sizeof(cython.short)))
+    destinations: cython.p_short = cython.cast(cython.p_short, calloc(n_rolls, cython.sizeof(cython.short)))
+    move: MoveStruct = MoveStruct(n_rolls=n_rolls, pawns=pawns, current_positions=current_positions, destinations=destinations)
+    return move
+
 
 @cython.cfunc
-def free_state(state: StateStruct):
+def free_state(state: StateStruct) -> cython.void:
     free(state.pawn_pos)
 
-
+@cython.cfunc
+def free_move(move: MoveStruct) -> cython.void:
+    free(move.pawns)
+    free(move.current_positions)
+    free(move.destinations)
 @cython.cclass
 class State:
     state_struct: StateStruct
