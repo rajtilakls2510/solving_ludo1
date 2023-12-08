@@ -21,7 +21,7 @@ const ColourChooser = () => {
     setLoader(true);
     if (colours === "ry")
       Api.createNewGame([
-        { mode: "AI", colours: ["green", "blue"] },
+        { mode: "Human", colours: ["green", "blue"] },
         { mode: "Human", colours: ["red", "yellow"] },
       ])
         .then((res) => {
@@ -37,7 +37,7 @@ const ColourChooser = () => {
         });
     else
       Api.createNewGame([
-        { mode: "AI", colours: ["red", "yellow"] },
+        { mode: "Human", colours: ["red", "yellow"] },
         { mode: "Human", colours: ["green", "blue"] },
       ])
         .then((res) => {

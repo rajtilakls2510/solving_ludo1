@@ -11,15 +11,11 @@ const LiveBoard = () => {
   const [boardState, setBoardState] = useState({
     config: {
       players: [
-        { name: "Player 1", colours: ["red", "yellow"] },
-        { name: "Player 2", colours: ["green", "blue"] },
-      ],
-      player_colour: [
-        { "Player 1": ["red", "yellow"] },
-        { "Player 2": ["green", "blue"] },
+        { name: "Player 0", colours: ["red", "yellow"] },
+        { name: "Player 1", colours: ["green", "blue"] },
       ],
     },
-    modes: ["AI", "Human"],
+    modes: ["Human", "Human"],
     pawns: {
       R1: { colour: "red", blocked: false },
       R2: { colour: "red", blocked: true },
@@ -56,7 +52,7 @@ const LiveBoard = () => {
       { pawn_id: "B3", pos_id: "P5" },
       { pawn_id: "B4", pos_id: "BH2" },
     ],
-    last_move_id: 0,
+    last_move_id: 1,
     current_player: 5,
     dice_roll: [6, 6, 2],
     blocks: [
