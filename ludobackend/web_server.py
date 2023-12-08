@@ -317,10 +317,10 @@ def take_move():
 if __name__ == "__main__":
     ludo = Ludo(GameConfig([[LudoModel.RED, LudoModel.YELLOW], [LudoModel.GREEN, LudoModel.BLUE]]))
 
-    ludo.state = {"game_over":False,"current_player": 0, "dice_roll": [2], "num_more_moves":1, "last_move_id": 0,
+    ludo.state = {"game_over":False,"current_player": 0, "dice_roll": [6, 1], "num_more_moves":1, "last_move_id": 0,
                       ludo.model.config.players[0].name:
-                          {"single_pawn_pos": {"R3": "RH6","R4": "P52", "Y1": "P20","Y2": "YH6","Y3": "P23","Y4": "YH6"},
-                                                    "block_pawn_pos": {"BL0": "P23"}},
+                          {"single_pawn_pos": {"R3": "RB3","R4": "RH6", "Y3": "YB3","Y4": "YH6"},
+                                                    "block_pawn_pos": {"BL0": "P22", "BL1": "P3"}},
                       ludo.model.config.players[1].name: {
                           "single_pawn_pos": {"G1": "GH6", "G2": "P6", "G3": "GH6", "G4": "GB4", "B1": "BB1", "B2": "BH6","B3": "BH6","B4": "BH1"},
                           "block_pawn_pos": {}},
@@ -329,7 +329,13 @@ if __name__ == "__main__":
         [pawn for id in ["R1", "R2"] for pawn in ludo.model.pawns[ludo.model.get_colour_from_id(id)]
          if
          pawn.id == id],
-        "BL0", rigid=False),],
+        "BL0", rigid=False),
+                      PawnBlock(
+                          [pawn for id in ["Y1", "Y2"] for pawn in ludo.model.pawns[ludo.model.get_colour_from_id(id)]
+                           if
+                           pawn.id == id],
+                          "BL1", rigid=True),
+                  ],
                   }
 
     # ludo.state = {"game_over":False,"current_player": 3, "dice_roll": [1], "num_more_moves":0, "last_move_id": 0,
@@ -374,12 +380,17 @@ if __name__ == "__main__":
     #                       "BL1", rigid=True),
     #               ],
     #               }
-    ludo.state = ludo.model.generate_next_state(ludo.state, [["R2", "P23", "P25"]])
+    # ludo.state = ludo.model.generate_next_state(ludo.state, [["R2", "P23", "P25"]])
+
+    import pprint
     print(ludo.state)
-    # ludo.all_current_moves = ludo.model.all_possible_moves(ludo.state)
-    # print(ludo.all_current_moves)
-    # ludo.state = ludo.model.generate_next_state(ludo.state, [[["Y3", "R1"], "P23", "P24"]])
-    # print(ludo.state)
+    ludo.all_current_moves = ludo.model.all_possible_moves(ludo.state)
+    # pprint.pprint(ludo.all_current_moves)
+    start = time.perf_counter_ns()
+    ludo.state = ludo.model.generate_next_state(ludo.state, [[['Y1', 'Y2'], 'P3', 'P6'], ['R1', 'P22', 'P23']])
+    end = time.perf_counter_ns()
+    print(f"Time: {(end - start) / 1e6} ms")
+    print(ludo.state)
     # ludo.all_current_moves = ludo.model.all_possible_moves(ludo.state)
     # print(ludo.all_current_moves)
     # ludo.turn([['R2', 'P39', 'P41']], 1)
