@@ -180,19 +180,9 @@ def create_new_game():
         for p1, p2 in zip(r, range(ludo_config.n_players)):
             if p1["mode"] == "AI":
                 p.append(p2)
-        # {'n_players': 2, 'game_over': False, 'current_player': 0, 'num_more_moves': 0, 'dice_roll': [2],
-        #  'last_move_id': 89,
-        #  'Player 0': {'R1': 'RB1', 'R2': 'RB2', 'Y3': 'YB3', 'R3': 'P2', 'Y4': 'P34', 'Y2': 'P43', 'R4': 'P43',
-        #               'Y1': 'P44'},
-        #  'Player 1': {'G2': 'GB2', 'G4': 'GB4', 'B1': 'BB1', 'G1': 'P1', 'G3': 'P15', 'B2': 'P45', 'B3': 'P45',
-        #               'B4': 'BH4'}, 'all_blocks': [{'pawns': ['B3', 'B2'], 'pos': 'P45', 'rigid': True},
-        #                                            {'pawns': ['Y2', 'R4'], 'pos': 'P43', 'rigid': False}]}
 
 
         ludo = Ludo(ludo_config)
-        ludo.state.set({'n_players': 2, 'game_over': False, 'current_player': 1, 'num_more_moves': 0, 'dice_roll': [2], 'last_move_id': 172, 'Player 0': {'Y1': 'P10', 'R1': 'P10', 'Y2': 'P32', 'Y3': 'P41', 'R4': 'P45', 'Y4': 'P45', 'R2': 'RH2', 'R3': 'RH3'}, 'Player 1': {'B3': 'BB3', 'G2': 'P21', 'B1': 'P41', 'B2': 'P44', 'G3': 'P44', 'G4': 'P45', 'G1': 'GH6', 'B4': 'BH4'}, 'all_blocks': [{'pawns': ['R1', 'Y1'], 'pos': 'P10', 'rigid': False}, {'pawns': ['R4', 'Y4'], 'pos': 'P45', 'rigid': True}, {'pawns': ['B2', 'G3'], 'pos': 'P44', 'rigid': False}]})
-        ludo.all_current_moves = ludo.model.all_possible_moves(ludo.state)
-        pprint.pprint(ludo.all_current_moves)
         # networks = pull_network_architecture(p)
         networks={}
         # Creating players
@@ -274,7 +264,6 @@ def take_move_inner(move, move_id, top_moves):
 
         ludo.turn(move, move_id)
         pprint.pprint(ludo.all_current_moves)
-        # print(f"After taking turn, state: {ludo.state}")
 
         game_data["move"] = move
         game_data["move_id"] = move_id - 1
