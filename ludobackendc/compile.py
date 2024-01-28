@@ -14,7 +14,7 @@ for ff in ("*.c", "*.html"):
             pass
 
 ext_modules = [
-    Extension("ludoc", ["ludoc.py"], extra_compile_args=["/openmp"], extra_link_args=[]) # -fopenmp
+    Extension("ludoc", ["ludoc.py"], extra_compile_args=["-fopenmp"], extra_link_args=[]) # /openmp
 ]
 
 setup(name="ludo", ext_modules=cythonize(ext_modules, annotate=True, compiler_directives={"language_level": "3"}))

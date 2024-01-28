@@ -1,9 +1,10 @@
 import ludoc
 import random
 import time
+import gc
 import pprint
 
-NUM_GAMES = 100
+NUM_GAMES = 100_000
 
 class PlayerAgent:
 
@@ -108,6 +109,7 @@ class Actor:
             print(f"Playing game: {game}")
             self.play_game(game_engine)
             game += 1
+            # gc.collect()
 
 if __name__ == "__main__":
     actor = Actor()

@@ -19,7 +19,7 @@ try:
     end = time.perf_counter_ns()
     print(state.get())
     print(f"Time {(end - start) / 1e6} ms")
-    # moves = model.all_possible_moves(state)
-    # pprint.pprint(moves)
+    moves = model.all_possible_moves(state)
+    pprint.pprint(moves)
 except Exception as e:
     print(e)

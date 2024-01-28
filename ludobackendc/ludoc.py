@@ -37,7 +37,7 @@ def create_new_state(n_players: cython.short) -> StateStruct:
                                      dice_roll=0, last_move_id=0, pawn_pos=pawn_pos, num_blocks=0)
     i: cython.Py_ssize_t
     for i in range(16):
-        state.all_blocks[i] = Block(pawns=0, pos=cython.cast(cython.short, i), rigid=(i % 2 == 0))
+        state.all_blocks[i] = Block(pawns=0, pos=cython.cast(cython.short, i), rigid=(i % 2 == 0)) # DO STRUCTS FREE?
     return state
 
 
@@ -85,12 +85,11 @@ def free_move(move: MoveStruct) -> cython.void:
 @cython.nogil
 @cython.exceptval(check=False)
 def free_tree(root: cython.pointer(AllMovesTreeNode)) -> cython.void:
-    if root.child != cython.NULL:
-        free_tree(root.child)
-    else:
+    if root != cython.NULL:
         prev_node: cython.pointer(AllMovesTreeNode) = root
         while prev_node != cython.NULL:
             node: cython.pointer(AllMovesTreeNode) = prev_node.next
+            free_tree(prev_node.child)
             free(prev_node)
             prev_node = node
 
@@ -111,7 +110,7 @@ def copy_state(state: StateStruct) -> StateStruct:
 @cython.cfunc
 @cython.nogil
 @cython.exceptval(check=False)
-def copy_move(move: MoveStruct) -> MoveStruct:
+def copy_move(move: MoveStruct) -> MoveStruct:  # DO WE NOT NEED TO SEND BACK A NEW MOVE? WHAT ABOUT PREVIOUS POINTERS?
     pawns: cython.p_int = cython.cast(cython.p_int, calloc(move.n_rolls, cython.sizeof(cython.int)))
     current_positions: cython.p_short = cython.cast(cython.p_short, calloc(move.n_rolls, cython.sizeof(cython.short)))
     destinations: cython.p_short = cython.cast(cython.p_short, calloc(move.n_rolls, cython.sizeof(cython.short)))
@@ -648,6 +647,8 @@ def generate_and_validate_moves(state: StateStruct, roll: cython.short, selected
                         selected_pawns.child = node
                     elif prev_node != cython.NULL:
                         prev_node.next = node
+                    else:
+                        free_tree(node)
                     free(next_possible_pawns.pawns)
                     free(next_possible_pawns.current_pos)
                     free_state(next_state)
@@ -662,6 +663,8 @@ def generate_and_validate_moves(state: StateStruct, roll: cython.short, selected
                 elif prev_node != cython.NULL and addable:
                     prev_node.next = node
                     prev_node = node
+                else:
+                    free_tree(node)
 
                 free_state(next_state)
 
@@ -697,14 +700,13 @@ def place_move_structs(moves: cython.pointer(MoveStruct), start: cython.short, r
     index: cython.short = start
     while node != cython.NULL:
         if node.child == cython.NULL and level > 0:
-            pawns: cython.p_int = cython.cast(cython.p_int, calloc(level, cython.sizeof(cython.int)))
-            current_pos: cython.p_short = cython.cast(cython.p_short, calloc(level, cython.sizeof(cython.short)))
-            destinations: cython.p_short = cython.cast(cython.p_short, calloc(level, cython.sizeof(cython.short)))
-            move_struct: MoveStruct = MoveStruct(n_rolls=level, pawns=pawns, current_positions=current_pos, destinations=destinations)
-            move_struct.pawns[level - 1] = node.pawn
-            move_struct.current_positions[level - 1] = node.current_pos
-            move_struct.destinations[level - 1] = node.destination
-            moves[index] = move_struct
+            moves[index].n_rolls = level
+            moves[index].pawns = cython.cast(cython.p_int, calloc(level, cython.sizeof(cython.int)))
+            moves[index].current_positions = cython.cast(cython.p_short, calloc(level, cython.sizeof(cython.short)))
+            moves[index].destinations = cython.cast(cython.p_short, calloc(level, cython.sizeof(cython.short)))
+            moves[index].pawns[level - 1] = node.pawn
+            moves[index].current_positions[level - 1] = node.current_pos
+            moves[index].destinations[level - 1] = node.destination
             index += 1
         else:
             prev_index: cython.short = index
@@ -878,6 +880,7 @@ class State:
 
     @cython.cfunc
     def set_structure(self, st: StateStruct):
+        free_state(self.state_struct)
         self.state_struct = st
 
     def set(self, state_dict):
@@ -1100,15 +1103,16 @@ class LudoModel:
                         p = mappings["pawn"][move_struct.pawns[j]]
                     move.append([p, mappings["pos"][move_struct.current_positions[j]], mappings["pos"][move_struct.destinations[j]]])
                 validated_moves.append(move)
+                # WINDOWS PROBLEM: HEAP CORRUPTION
+                free_move(move_struct)
             possible_moves.append({"roll": roll, "moves": validated_moves})
         possible_moves.append({"roll": [6, 6, 6], "moves": []})
 
-        i: cython.short
+        i: cython.Py_ssize_t
         for i in range(19):
             free(all_moves_returned.roll_moves[i])
         free(all_moves_returned.roll_moves)
         free(all_moves_returned.roll_num_moves)
-
         return possible_moves
 
     def check_completed(self, state: State, player: cython.short):
