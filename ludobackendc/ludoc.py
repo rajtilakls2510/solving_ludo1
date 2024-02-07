@@ -2,30 +2,30 @@
 import cython
 from random import randint
 from cython.cimports.libc.stdlib import free, calloc, malloc
-from cython.cimports.ludocds import AllMovesTreeNode
+# from cython.cimports.ludocds import AllMovesTreeNode
 
-Block = cython.struct(pawns=cython.int, pos=cython.short, rigid=cython.bint)
+# Block = cython.struct(pawns=cython.int, pos=cython.short, rigid=cython.bint)
 
-StateStruct = cython.struct(
-    n_players=cython.short,
-    game_over=cython.bint,
-    current_player=cython.short,
-    num_more_moves=cython.short,
-    dice_roll=cython.short,
-    last_move_id=cython.short,
-    pawn_pos=cython.p_int,
-    num_blocks=cython.short,
-    all_blocks=Block[16]
-)
+# StateStruct = cython.struct(
+#     n_players=cython.short,
+#     game_over=cython.bint,
+#     current_player=cython.short,
+#     num_more_moves=cython.short,
+#     dice_roll=cython.short,
+#     last_move_id=cython.short,
+#     pawn_pos=cython.p_int,
+#     num_blocks=cython.short,
+#     all_blocks=Block[16]
+# )
 
-MoveStruct = cython.struct(n_rolls=cython.short, pawns=cython.p_int, current_positions=cython.p_short, destinations=cython.p_short)
+# MoveStruct = cython.struct(n_rolls=cython.short, pawns=cython.p_int, current_positions=cython.p_short, destinations=cython.p_short)
 
 NextStateReturn = cython.struct(next_state=StateStruct, num_more_moves=cython.short)
 NextPossiblePawnReturn = cython.struct(pawns=cython.p_int, current_pos=cython.p_short, n=cython.short)
 ValidateMoveReturn = cython.struct(valid=cython.bint, destination=cython.short)
 
 RollMovesReturn = cython.struct(num_moves=cython.short, moves=cython.pointer(MoveStruct))
-AllPossibleMovesReturn = cython.struct(roll_num_moves=cython.p_short, roll_moves=cython.pointer(cython.pointer(MoveStruct)))
+# AllPossibleMovesReturn = cython.struct(roll_num_moves=cython.p_short, roll_moves=cython.pointer(cython.pointer(MoveStruct)))
 
 
 @cython.cfunc
@@ -583,7 +583,7 @@ def check_available_moves(state: StateStruct, player: cython.short, final_pos: c
 @cython.cfunc
 @cython.nogil
 @cython.exceptval(check=False)
-def generate_next_state(state: StateStruct, move: MoveStruct, colour_tracks: cython.p_short, stars: cython.p_short, final_pos: cython.p_short, player_colours: cython.p_short) -> StateStruct:
+def generate_next_state1(state: StateStruct, move: MoveStruct, colour_tracks: cython.p_short, stars: cython.p_short, final_pos: cython.p_short, player_colours: cython.p_short) -> StateStruct:
     state: StateStruct = copy_state(state)
     if move.n_rolls > 0:
         total_moves: cython.short = state.num_more_moves
@@ -739,7 +739,7 @@ def convert_validated_moves(state: StateStruct, roll: cython.short, stars: cytho
 @cython.cfunc
 @cython.nogil
 @cython.exceptval(check=False)
-def all_possible_moves(state: StateStruct, stars: cython.p_short, final_pos: cython.p_short, colour_tracks: cython.p_short, player_colours: cython.p_short) -> AllPossibleMovesReturn:
+def all_possible_moves1(state: StateStruct, stars: cython.p_short, final_pos: cython.p_short, colour_tracks: cython.p_short, player_colours: cython.p_short) -> AllPossibleMovesReturn:
     # Calculates all possible moves by a player before dice roll (Note rolls returned is in addition format instead of mod format)
     roll_num_moves: cython.p_short = cython.cast(cython.p_short, calloc(19, cython.sizeof(cython.short)))
     roll_moves: cython.pointer(cython.pointer(MoveStruct)) = cython.cast(cython.pointer(cython.pointer(MoveStruct)), calloc(19, cython.sizeof(cython.pointer(MoveStruct))))
@@ -1065,14 +1065,14 @@ class LudoModel:
                 move_struct.destinations[index] = cython.cast(cython.short, mappings["pos"].index(d))
         else:
             move_struct: MoveStruct = MoveStruct(n_rolls=0, pawns=pawns, current_positions=current_pos, destinations=destinations)
-        next_state: StateStruct = generate_next_state(state.state_struct, move_struct, self.colour_tracks, self.stars, self.final_pos, self.config.player_colours)
+        next_state: StateStruct = generate_next_state1(state.state_struct, move_struct, self.colour_tracks, self.stars, self.final_pos, self.config.player_colours)
         ns = State()
         ns.state_struct = next_state
         free_move(move_struct)
         return ns
 
     def all_possible_moves(self, state: State):
-        all_moves_returned: AllPossibleMovesReturn = all_possible_moves(state.state_struct, self.stars, self.final_pos, self.colour_tracks, self.config.player_colours)
+        all_moves_returned: AllPossibleMovesReturn = all_possible_moves1(state.state_struct, self.stars, self.final_pos, self.colour_tracks, self.config.player_colours)
         possible_rolls = [[i] for i in range(1, 6)] + [[6, i] for i in range(1, 6)] + [[6, 6, i] for i in range(1, 6)]
         possible_moves = []
         mappings = {

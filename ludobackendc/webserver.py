@@ -12,7 +12,6 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from threading import Lock, Event
 from ludoc import Ludo, GameConfig, LudoModel
-import numpy
 import sys
 import rpyc
 import json
@@ -22,7 +21,7 @@ try:
 except:
     # No GPU, no problem. Code will just run slow
     pass
-numpy.set_printoptions(threshold=sys.maxsize)
+np.set_printoptions(threshold=sys.maxsize)
 """ This file contains stuff related to the web server which serves the ReactJS frontend """
 
 app = Flask(__name__)
