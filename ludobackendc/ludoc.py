@@ -97,6 +97,18 @@ def free_tree(root: cython.pointer(AllMovesTreeNode)) -> cython.void:
 @cython.cfunc
 @cython.nogil
 @cython.exceptval(check=False)
+def free_all_possible_moves_return(all_moves: AllPossibleMovesReturn) -> cython.void:
+    i: cython.Py_ssize_t
+    for i in range(19):
+        free(all_moves.roll_moves[i])
+    free(all_moves.roll_moves)
+    free(all_moves.roll_num_moves)
+
+
+
+@cython.cfunc
+@cython.nogil
+@cython.exceptval(check=False)
 def copy_state(state: StateStruct) -> StateStruct:
     new_state: StateStruct = state
     pawn_pos: cython.p_int = cython.cast(cython.p_int, calloc(state.n_players * 93, cython.sizeof(cython.int)))
@@ -879,7 +891,7 @@ class State:
         self.state_struct: StateStruct = create_new_state(n_players)
 
     @cython.cfunc
-    def set_structure(self, st: StateStruct):
+    def set_structure(self, st: StateStruct) -> cython.void:
         free_state(self.state_struct)
         self.state_struct = st
 
@@ -1108,11 +1120,7 @@ class LudoModel:
             possible_moves.append({"roll": roll, "moves": validated_moves})
         possible_moves.append({"roll": [6, 6, 6], "moves": []})
 
-        i: cython.Py_ssize_t
-        for i in range(19):
-            free(all_moves_returned.roll_moves[i])
-        free(all_moves_returned.roll_moves)
-        free(all_moves_returned.roll_num_moves)
+        free_all_possible_moves_return(all_moves_returned)
         return possible_moves
 
     def check_completed(self, state: State, player: cython.short):

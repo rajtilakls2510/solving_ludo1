@@ -123,6 +123,8 @@ def mcts_job(num, root, player, evaluator_conn, c_puct, n_vl, prior_temp):
                     break
             if from_index >= to_index:
                 print(f"{num} from_index: {from_index} to_index: {to_index}")
+
+
             p = node.stats[player.name]["P"][from_index:to_index]
             n = node.stats[player.name]["N"][from_index:to_index]
             w = node.stats[player.name]["W"][from_index:to_index]
@@ -192,7 +194,7 @@ def mcts_job(num, root, player, evaluator_conn, c_puct, n_vl, prior_temp):
         # print(f"{num} Backup. Evaluation: {chk4 - chk3}")
         p = softmax(result, temp=prior_temp)
         v = np.sum(p * result)
-        node.stats[player.name]["P"] = p
+        node.stats[player.name]["P"] = p # WHAT ABOUT THE PRIORS FOR OTHER PLAYERS?
         node = node.parent
         move_indices.reverse()
 

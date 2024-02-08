@@ -19,7 +19,8 @@ else:
     openmp_arg = '-fopenmp'
 
 ext_modules = [
-    Extension("ludoc", ["ludoc.py"], extra_compile_args=[openmp_arg], extra_link_args=[openmp_arg])
+    Extension("ludoc", ["ludoc.py"], extra_compile_args=[openmp_arg], extra_link_args=[openmp_arg]),
+    Extension("mcts", ["mcts.py"], extra_compile_args=[openmp_arg], extra_link_args=[openmp_arg]),
 ]
 
 setup(name="ludo", ext_modules=cythonize(ext_modules, annotate=True, compiler_directives={"language_level": "3"}))
