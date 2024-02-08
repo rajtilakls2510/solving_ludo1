@@ -28,7 +28,7 @@ if __name__ == "__main__":
     networks = [0 for _ in range(state["n_players"])]
 
     # Initialize MCTS trees for each player
-    trees = [mcts.MCTree(game_engine.state) for i in range(state["n_players"])]
+    trees = [mcts.MCTree(game_engine.state, i) for i in range(state["n_players"])]
     for tree in trees:
         tree.expand_root()
 
@@ -47,9 +47,10 @@ if __name__ == "__main__":
     t1.start()
 
     # Searching and Selecting move
-    trees[player].mcts(eq, simulations=1000)
-    # TODO: Select Next Move and Take next move
-    trees[player].take_move(0) # TODO: Figure this out
+    trees[player].mcts(simulations=1000, player=0, c_puct=3.0, n_vl=3, eq=eq, max_depth=1000)
+    move_idx = trees[player].select_next_move()
+    # TODO: Take next move
+    trees[player].take_move(move_idx) # TODO: Figure this out
 
     # Releasing Evaluation Resources
     eq.set_stop()

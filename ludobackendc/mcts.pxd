@@ -10,8 +10,8 @@ cdef struct MCTSNode:
     MCTSNode* children
     short move_start
     short move_end
-    int* p
+    double* p
     int* n
     int* w
-    int* q
+    double* q
 
