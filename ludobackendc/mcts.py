@@ -12,30 +12,20 @@ from cython.cimports.cytime import sleep
 @cython.cfunc
 @cython.nogil
 @cython.exceptval(check=False)
-def create_mcts_node(
-        state: ludoc.StateStruct,
-        parent: cython.pointer(MCTSNode),
-        all_moves: ludoc.AllPossibleMovesReturn,
-        expanded: cython.bint,
-        children: cython.pointer(MCTSNode),
-        move_start: cython.short,
-        move_end: cython.short,
-        p: cython.pointer(cython.double),
-        n: cython.pointer(cython.int),
-        w: cython.pointer(cython.int),
-        q: cython.pointer(cython.double)
-) -> MCTSNode:
-    node: MCTSNode = MCTSNode(state=state,
-                              parent=parent,
-                              all_moves=all_moves,
-                              expanded=expanded,
-                              children=children,
-                              move_start=move_start,
-                              move_end=move_end,
-                              p=p,
-                              n=n,
-                              w=w,
-                              q=q)
+def create_mcts_node(state: ludoc.StateStruct, parent: cython.pointer(MCTSNode)) -> cython.pointer(MCTSNode):
+    node: cython.pointer(MCTSNode) = cython.cast(cython.pointer(MCTSNode), calloc(0, cython.sizeof(MCTSNode)))
+    node.state = state
+    node.parent = parent
+    node.roll_num_moves = cython.NULL
+    node.all_moves = cython.NULL
+    node.expanded = False
+    node.children = cython.NULL
+    node.move_start = 0
+    node.move_end = 0
+    node.p = cython.NULL
+    node.n = cython.NULL
+    node.w = cython.NULL
+    node.q = cython.NULL
     omp_init_lock(cython.address(node.access_lock))
     return node
 
@@ -43,50 +33,56 @@ def create_mcts_node(
 @cython.cfunc
 @cython.nogil
 @cython.exceptval(check=False)
-def free_mcts_node(node: MCTSNode, skip_moves_and_children: cython.bint) -> cython.void:
-    # This function frees the node along with it's subtree. Be careful.
-    # skip_moves_and_children skips freeing all_moves and children recursively. However, it does free the children pointer.
-    # This is required when the player takes a turn and the tree needs to be updated.
-    ludoc.free_state(node.state)
-    omp_destroy_lock(cython.address(node.access_lock))
-    if node.expanded:
-        if skip_moves_and_children:
-            ludoc.free_all_possible_moves_return(node.all_moves)
+def free_mcts_node(node: cython.pointer(MCTSNode)) -> cython.void:
+    # This function frees the node along with it's subtree recursively. Be careful.
+    if node != cython.NULL:
+        ludoc.free_state(node.state)
+        omp_destroy_lock(cython.address(node.access_lock))
+        if node.expanded:
             if node.children != cython.NULL:
                 i: cython.Py_ssize_t
                 for i in range(node.move_start, node.move_end):
-                    free_mcts_node(node.children[i], False)
-        free(node.children)
-        free(node.p)
-        free(node.n)
-        free(node.w)
-        free(node.q)
-    node.expanded = False
+                    free_mcts_node(node.children[i])
+                    node.children[i] = cython.NULL
+            total_moves: cython.short = 0
+            i: cython.Py_ssize_t
+            for i in range(19):
+                total_moves += node.roll_num_moves[i]
+            for i in range(total_moves):
+                ludoc.free_move(node.all_moves[i])
+            free(node.roll_num_moves)
+            free(node.all_moves)
+            free(node.children)
+            free(node.p)
+            free(node.n)
+            free(node.w)
+            free(node.q)
+        free(node)
 
 
 @cython.cfunc
 @cython.nogil
 @cython.exceptval(check=False)
-def prune(node: MCTSNode, start: cython.short, end: cython.short) -> MCTSNode:
+def prune(node: cython.pointer(MCTSNode), start: cython.short, end: cython.short) -> cython.void:
     # ONLY CALL PRUNE ON AN EXPANDED NODE [start is included, end is excluded]
 
     i: cython.Py_ssize_t
     for i in range(node.move_start, start):
-        free_mcts_node(node.children[i], False)
+        free_mcts_node(node.children[i])
+        node.children[i] = cython.NULL
     for i in range(end, node.move_end):
-        free_mcts_node(node.children[i], False)
-
+        free_mcts_node(node.children[i])
+        node.children[i] = cython.NULL
     node.move_start = start
     node.move_end = end
-    return node
 
 
 @cython.cfunc
 @cython.nogil
 @cython.exceptval(check=False)
-def expand_mcts_node(node: MCTSNode) -> MCTSNode:
+def expand_mcts_node(node: cython.pointer(MCTSNode)) -> cython.void:
     # TODO: Expand MCTS Node
-    return node
+    pass
 
 
 @cython.cfunc
@@ -121,8 +117,8 @@ def get_random_roll_sum() -> cython.short:
 @cython.cfunc
 @cython.nogil
 @cython.exceptval(check=False)
-def selection(node: MCTSNode, c_puct: cython.double, n_vl: cython.int, move_indices: cython.pointer(cython.int),
-              move_last: cython.pointer(cython.int)) -> MCTSNode:
+def selection(node: cython.pointer(MCTSNode), c_puct: cython.double, n_vl: cython.int, move_indices: cython.pointer(cython.int),
+              move_last: cython.pointer(cython.int)) -> cython.pointer(MCTSNode):
     # When we find a node which is not expanded. It may also happen that after this instruction, another thread starts expanding the node.
     # But we make sure to continue selection for this thread later.
     while node.expanded:
@@ -137,9 +133,9 @@ def selection(node: MCTSNode, c_puct: cython.double, n_vl: cython.int, move_indi
         for i in range(19):
             if i == r:
                 ms = sum
-                me = ms + node.all_moves.roll_num_moves[i]
+                me = ms + node.roll_num_moves[i]
                 break
-            sum += node.all_moves.roll_num_moves[i]
+            sum += node.roll_num_moves[i]
 
         # Calculating u = c_puct * node.p[ms:me] * sqrt(sum(node.n[ms:me])) / (1 + node.n[ms:me])
         u: cython.pointer(cython.double) = cython.cast(cython.pointer(cython.double),
@@ -175,13 +171,13 @@ def selection(node: MCTSNode, c_puct: cython.double, n_vl: cython.int, move_indi
 @cython.cfunc
 @cython.nogil
 @cython.exceptval(check=False)
-def expansion(node: MCTSNode, c_puct: cython.double, n_vl: cython.int, move_indices: cython.pointer(cython.int),
-              move_last: cython.pointer(cython.int)) -> MCTSNode:
+def expansion(node: cython.pointer(MCTSNode), c_puct: cython.double, n_vl: cython.int, move_indices: cython.pointer(cython.int),
+              move_last: cython.pointer(cython.int)) -> cython.pointer(MCTSNode):
     if not node.state.game_over:
         omp_set_lock(cython.address(node.access_lock))
         # If the node has not been expanded by another thread, expand it
         if not node.expanded:
-            node = expand_mcts_node(node)
+            expand_mcts_node(node)
             # LOCK IS NOT RELEASED UNTIL p FOR node IS CALCULATED. THIS IS TO MAKE SURE OTHER THREADS WAIT FOR EXPANSION COMPLETION
         else:
             # Else, release lock immediately and resume from selection phase
@@ -194,9 +190,10 @@ def expansion(node: MCTSNode, c_puct: cython.double, n_vl: cython.int, move_indi
 @cython.cfunc
 @cython.nogil
 @cython.exceptval(check=False)
-def mcts_job(j: cython.Py_ssize_t, model: ludoc.LudoModel, root: MCTSNode, player: cython.short, c_puct: cython.double, n_vl: cython.int, eq: EvaluationQueue,
+def mcts_job(j: cython.Py_ssize_t, model: ludoc.LudoModel, root: cython.pointer(MCTSNode), player: cython.short, c_puct: cython.double,
+             n_vl: cython.int, eq: EvaluationQueue,
              max_depth: cython.int) -> cython.void:
-    node: MCTSNode = root
+    node: cython.pointer(MCTSNode) = root
     move_indices: cython.pointer(cython.int) = cython.cast(cython.pointer(cython.int),
                                                            calloc(max_depth, cython.sizeof(cython.int)))
     move_last: cython.int = 0
@@ -208,9 +205,13 @@ def mcts_job(j: cython.Py_ssize_t, model: ludoc.LudoModel, root: MCTSNode, playe
     node = expansion(node, c_puct, n_vl, move_indices, cython.address(move_last))
 
     # EVALUATION
-    results: cython.pointer(cython.double) = cython.cast(cython.pointer(cython.double), calloc(node.move_end - node.move_start, cython.sizeof(cython.double)))
+    results: cython.pointer(cython.double) = cython.cast(cython.pointer(cython.double),
+                                                         calloc(node.move_end - node.move_start,
+                                                                cython.sizeof(cython.double)))
     if not node.state.game_over:
-        future_ids: cython.pointer(cython.int) = cython.cast(cython.pointer(cython.int), calloc(node.move_end - node.move_start, cython.sizeof(cython.int)))
+        future_ids: cython.pointer(cython.int) = cython.cast(cython.pointer(cython.int),
+                                                             calloc(node.move_end - node.move_start,
+                                                                    cython.sizeof(cython.int)))
         i: cython.Py_ssize_t
         for i in range(node.move_end - node.move_start):
             next_state: ludoc.StateStruct = node.children[i].state
@@ -226,7 +227,6 @@ def mcts_job(j: cython.Py_ssize_t, model: ludoc.LudoModel, root: MCTSNode, playe
 
     # BACKUP
 
-
     free(results)
     free(move_indices)
 
@@ -234,27 +234,34 @@ def mcts_job(j: cython.Py_ssize_t, model: ludoc.LudoModel, root: MCTSNode, playe
 @cython.cclass
 class MCTree:
     # This is the python object for accessing MCTS tree and it's functions
-    root: MCTSNode
+    root: cython.pointer(MCTSNode)
     owner = cython.declare(cython.short, visibility="public")
 
     def __init__(self, current_state: ludoc.State, owner: cython.short):
         # Creating unexpanded root node
         # If state is not copied, when current_state object is deallocated, its state_struct will also get deallocated. This does not require us to hold the reference to the current_state object
-        self.root = create_mcts_node(ludoc.copy_state(current_state.state_struct), cython.NULL,
-                                     ludoc.AllPossibleMovesReturn(roll_num_moves=cython.NULL, roll_moves=cython.NULL),
-                                     False, cython.NULL, 0, 0, cython.NULL, cython.NULL, cython.NULL, cython.NULL)
+        self.root = create_mcts_node(ludoc.copy_state(current_state.state_struct), cython.NULL)
         self.owner = owner
 
     def expand_root(self):
-        self.root = expand_mcts_node(self.root)
+        expand_mcts_node(self.root)
 
-    def prune(self, roll: list):
+    def prune_root(self, roll: list):
         # Prunes the tree.
-        # TODO: Find start and end index based on roll
-        # TODO: Prune
-        pass
+        r = sum(roll)
+        ms: cython.short = 0
+        me: cython.short = 0
+        sum: cython.short = 0
+        for i in range(19):
+            if i == r:
+                ms = sum
+                me = ms + self.root.roll_num_moves[i]
+                break
+            sum += self.root.roll_num_moves[i]
+        prune(self.root, ms, me)
 
-    def mcts(self, simulations: cython.int, model: ludoc.LudoModel, player: cython.short, c_puct: cython.double, n_vl: cython.int, eq: EvaluationQueue,
+    def mcts(self, simulations: cython.int, model: ludoc.LudoModel, player: cython.short, c_puct: cython.double,
+             n_vl: cython.int, eq: EvaluationQueue,
              max_depth: cython.int):
         # Runs MCTS for simulations using prange
         i: cython.Py_ssize_t
@@ -263,13 +270,13 @@ class MCTree:
 
     def take_move(self, move_idx: cython.short):
         # Takes the move, updates the tree and root.
-        # TODO: Prune all moves other than move_idx
-        # TODO: Advance root to root.children[move_idx]
-        # TODO: Call free_mcts_node on previous root with skip option
-        pass
+        previous_root: cython.pointer(MCTSNode) = self.root
+        self.root = previous_root.children[move_idx]
+        previous_root.children[move_idx] = cython.NULL # Dereferencing the child before it gets freed by the next free node function call
+        free_mcts_node(previous_root)
 
     def __dealloc__(self):
-        free_mcts_node(self.root, False)
+        free_mcts_node(self.root)
 
 
 QN = cython.struct(data=ludoc.StateStruct, pending=cython.bint, result=cython.double)

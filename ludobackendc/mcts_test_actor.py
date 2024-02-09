@@ -37,7 +37,7 @@ if __name__ == "__main__":
 
     state = game_engine.state.get()
     for tree in trees:
-        tree.prune(state["dice_roll"])
+        tree.prune_root(state["dice_roll"])
     player = state["current_player"]
 
     # Initializing Evaluation Resources

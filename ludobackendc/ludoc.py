@@ -99,7 +99,10 @@ def free_tree(root: cython.pointer(AllMovesTreeNode)) -> cython.void:
 @cython.exceptval(check=False)
 def free_all_possible_moves_return(all_moves: AllPossibleMovesReturn) -> cython.void:
     i: cython.Py_ssize_t
+    j: cython.Py_ssize_t
     for i in range(19):
+        for j in range(all_moves.roll_num_moves[i]):
+            free_move(all_moves.roll_moves[i][j])
         free(all_moves.roll_moves[i])
     free(all_moves.roll_moves)
     free(all_moves.roll_num_moves)
@@ -1116,7 +1119,6 @@ class LudoModel:
                     move.append([p, mappings["pos"][move_struct.current_positions[j]], mappings["pos"][move_struct.destinations[j]]])
                 validated_moves.append(move)
                 # WINDOWS PROBLEM: HEAP CORRUPTION
-                free_move(move_struct)
             possible_moves.append({"roll": roll, "moves": validated_moves})
         possible_moves.append({"roll": [6, 6, 6], "moves": []})
 

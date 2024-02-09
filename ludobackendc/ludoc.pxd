@@ -41,6 +41,8 @@ cdef StateStruct copy_state(StateStruct) noexcept nogil
 
 cdef void free_state(StateStruct state) noexcept nogil
 
+cdef void free_move(MoveStruct move) noexcept nogil
+
 cdef void free_all_possible_moves_return(AllPossibleMovesReturn all_moves) noexcept nogil
 
 cdef class State:
