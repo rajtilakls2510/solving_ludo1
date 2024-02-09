@@ -3,7 +3,7 @@
 import cython
 from cython.parallel import prange
 from cython.cimports import ludoc
-from cython.cimports.libc.stdlib import free, malloc, calloc, rand
+from cython.cimports.libc.stdlib import free, malloc, calloc, rand, RAND_MAX
 from cython.cimports.openmp import omp_lock_t, omp_init_lock, omp_set_lock, omp_unset_lock, omp_destroy_lock
 from cython.cimports.libc.math import exp, pow, sqrt
 from cython.cimports.cytime import sleep
@@ -13,7 +13,7 @@ from cython.cimports.cytime import sleep
 @cython.nogil
 @cython.exceptval(check=False)
 def create_mcts_node(state: ludoc.StateStruct, parent: cython.pointer(MCTSNode)) -> cython.pointer(MCTSNode):
-    node: cython.pointer(MCTSNode) = cython.cast(cython.pointer(MCTSNode), calloc(0, cython.sizeof(MCTSNode)))
+    node: cython.pointer(MCTSNode) = cython.cast(cython.pointer(MCTSNode), calloc(1, cython.sizeof(MCTSNode)))
     node.state = state
     node.parent = parent
     node.roll_num_moves = cython.NULL
@@ -49,7 +49,8 @@ def free_mcts_node(node: cython.pointer(MCTSNode)) -> cython.void:
             for i in range(19):
                 total_moves += node.roll_num_moves[i]
             for i in range(total_moves):
-                ludoc.free_move(node.all_moves[i])
+                if node.all_moves[i].n_rolls > 0:
+                    ludoc.free_move(node.all_moves[i])
             free(node.roll_num_moves)
             free(node.all_moves)
             free(node.children)
@@ -65,7 +66,6 @@ def free_mcts_node(node: cython.pointer(MCTSNode)) -> cython.void:
 @cython.exceptval(check=False)
 def prune(node: cython.pointer(MCTSNode), start: cython.short, end: cython.short) -> cython.void:
     # ONLY CALL PRUNE ON AN EXPANDED NODE [start is included, end is excluded]
-
     i: cython.Py_ssize_t
     for i in range(node.move_start, start):
         free_mcts_node(node.children[i])
@@ -90,38 +90,47 @@ def expand_mcts_node(node: cython.pointer(MCTSNode),
         if not node.state.game_over:
 
             # Finding all possible moves
-            all_moves_return: ludoc.AllPossibleMovesReturn = ludoc.all_possible_moves1(node.state, stars, final_pos, colour_tracks, player_colours)
+            all_moves_return: ludoc.AllPossibleMovesReturn = ludoc.all_possible_moves1(node.state, stars, final_pos,
+                                                                                       colour_tracks, player_colours)
 
             # Calculating total number of moves along with "no move" moves for each roll
             total_moves: cython.short = 0
             i: cython.Py_ssize_t
             for i in range(19):
                 total_moves += all_moves_return.roll_num_moves[i]
-                if all_moves_return.roll_num_moves[i] == 0: # Putting a "no move" on rolls with no move. Doesn't matter if its not a valid roll
+                if all_moves_return.roll_num_moves[
+                    i] == 0:  # Putting a "no move" on rolls with no move. Doesn't matter if its not a valid roll
                     total_moves += 1
 
             # Copying roll_num_moves in node algon with "no move"
             node.roll_num_moves = cython.cast(cython.pointer(cython.short), calloc(19, cython.sizeof(cython.short)))
             for i in range(19):
                 node.roll_num_moves[i] = all_moves_return.roll_num_moves[i]
-                if all_moves_return.roll_num_moves[i] == 0: # Putting a "no move" on rolls with no move. Doesn't matter if its not a valid roll
+                if all_moves_return.roll_num_moves[
+                    i] == 0:  # Putting a "no move" on rolls with no move. Doesn't matter if its not a valid roll
                     node.roll_num_moves[i] = 1
 
             # Copying the moves and creating the next child of the tree
-            node.all_moves = cython.cast(cython.pointer(ludoc.MoveStruct), calloc(total_moves, cython.sizeof(ludoc.MoveStruct)))
-            node.children = cython.cast(cython.pointer(cython.pointer(MCTSNode)), calloc(total_moves, cython.sizeof(cython.pointer(MCTSNode))))
+            node.all_moves = cython.cast(cython.pointer(ludoc.MoveStruct),
+                                         calloc(total_moves, cython.sizeof(ludoc.MoveStruct)))
+            node.children = cython.cast(cython.pointer(cython.pointer(MCTSNode)),
+                                        calloc(total_moves, cython.sizeof(cython.pointer(MCTSNode))))
             last: cython.short = 0
             for i in range(19):
                 node.state.dice_roll = ludoc.roll_sum_to_mod(i)
                 if all_moves_return.roll_num_moves[i] == 0:
                     # Skipping assignment to this move because this will serve as a no move MoveStruct
-                    node.children[last] = create_mcts_node(ludoc.generate_next_state1(node.state, node.all_moves[last], colour_tracks, stars, final_pos, player_colours), node)
+                    node.children[last] = create_mcts_node(
+                        ludoc.generate_next_state1(node.state, node.all_moves[last], colour_tracks, stars, final_pos,
+                                                   player_colours), node)
                     last += 1
                 else:
                     j: cython.Py_ssize_t
                     for j in range(node.roll_num_moves[i]):
                         node.all_moves[last] = all_moves_return.roll_moves[i][j]
-                        node.children[last] = create_mcts_node(ludoc.generate_next_state1(node.state, node.all_moves[last], colour_tracks, stars, final_pos, player_colours), node)
+                        node.children[last] = create_mcts_node(
+                            ludoc.generate_next_state1(node.state, node.all_moves[last], colour_tracks, stars,
+                                                       final_pos, player_colours), node)
                         last += 1
             node.move_start = 0
             node.move_end = total_moves
@@ -145,7 +154,6 @@ def expand_mcts_node(node: cython.pointer(MCTSNode),
 @cython.exceptval(check=False)
 def get_random_roll_sum() -> cython.short:
     p: cython.int = rand() % 16 + 1  # generate randomly out of 1 - 16
-    r: cython.short = 0
     i: cython.short
     for i in range(1, 7):
         if i == 6:
@@ -156,17 +164,13 @@ def get_random_roll_sum() -> cython.short:
                     for k in range(1, 6):
                         p -= 1
                         if p == 0:
-                            r = i + j + k
-                            break
+                            return i + j + k
                 p -= 1
                 if p == 0:
-                    r = i + j
-                    break
+                    return i + j
         p -= 1
         if p == 0:
-            r = i
-            break
-    return r
+            return i
 
 
 @cython.cfunc
@@ -174,24 +178,30 @@ def get_random_roll_sum() -> cython.short:
 @cython.exceptval(check=False)
 def selection(node: cython.pointer(MCTSNode), c_puct: cython.double, n_vl: cython.int,
               move_indices: cython.pointer(cython.int),
-              move_last: cython.pointer(cython.int)) -> cython.pointer(MCTSNode):
+              move_last: cython.pointer(cython.int), skip_initial_node: cython.bint) -> cython.pointer(MCTSNode):
     # When we find a node which is not expanded. It may also happen that after this instruction, another thread starts expanding the node.
     # But we make sure to continue selection for this thread later.
+    k: cython.int = 0
     while node.expanded:
-        # Getting a random roll
-        r: cython.short = get_random_roll_sum()
-
-        # Calculating the move start and move end
         ms: cython.short = 0
         me: cython.short = 0
-        i: cython.Py_ssize_t
-        sum: cython.short = 0
-        for i in range(19):
-            if i == r:
-                ms = sum
-                me = ms + node.roll_num_moves[i]
-                break
-            sum += node.roll_num_moves[i]
+        if skip_initial_node:
+            ms = node.move_start
+            me = node.move_end
+            skip_initial_node = False
+        else:
+            # Getting a random roll
+            r: cython.short = get_random_roll_sum()
+
+            # Calculating the move start and move end
+            i: cython.Py_ssize_t
+            sum: cython.short = 0
+            for i in range(19):
+                if i == r:
+                    ms = sum
+                    me = ms + node.roll_num_moves[i]
+                    break
+                sum += node.roll_num_moves[i]
 
         # Calculating u = c_puct * node.p[ms:me] * sqrt(sum(node.n[ms:me])) / (1 + node.n[ms:me])
         u: cython.pointer(cython.double) = cython.cast(cython.pointer(cython.double),
@@ -200,15 +210,15 @@ def selection(node: cython.pointer(MCTSNode), c_puct: cython.double, n_vl: cytho
         for i in range(ms, me):
             sum2 += node.n[i]
         sqrt_sum: cython.double = sqrt(sum2)
-        for i in range(ms, me):
-            u[i] = c_puct * node.p[i] * sqrt_sum / (1 + node.n[i])
-        mi: cython.int = 0
-        max: cython.double = 0
-        for i in range(ms, me):
-            if max < (node.q[i] + u[i]):
-                max = node.q[i] + u[i]
-                mi = i
-        mi = ms + mi
+
+        for i in range(me - ms):
+            u[i] = c_puct * node.p[i + ms] * sqrt_sum / (1 + node.n[i + ms])
+        mi: cython.int = ms
+        max: cython.double = node.q[ms] + u[0]
+        for i in range(me - ms):
+            if max < (node.q[i + ms] + u[i]):
+                max = node.q[i + ms] + u[i]
+                mi = i + ms
         move_indices[move_last[0]] = mi
         move_last[0] += 1
         free(u)
@@ -220,7 +230,7 @@ def selection(node: cython.pointer(MCTSNode), c_puct: cython.double, n_vl: cytho
         omp_unset_lock(cython.address(node.access_lock))
 
         node = node.children[mi]
-
+        k += 1
     return node
 
 
@@ -235,18 +245,18 @@ def expansion(node: cython.pointer(MCTSNode),
               final_pos: cython.pointer(cython.short),
               colour_tracks: cython.pointer(cython.short),
               player_colours: cython.pointer(cython.short)) -> cython.pointer(MCTSNode):
-    if not node.state.game_over:
-        omp_set_lock(cython.address(node.access_lock))
-        # If the node has not been expanded by another thread, expand it
-        if not node.expanded:
-            expand_mcts_node(node, stars, final_pos, colour_tracks, player_colours)
-            # LOCK IS NOT RELEASED UNTIL p FOR node IS CALCULATED. THIS IS TO MAKE SURE OTHER THREADS WAIT FOR EXPANSION COMPLETION
-        else:
-            # Else, release lock immediately and resume from selection phase
-            omp_unset_lock(cython.address(node.access_lock))
-            node = selection(node, c_puct, n_vl, move_indices, move_last)
-            node = expansion(node, c_puct, n_vl, move_indices, move_last, stars, final_pos, colour_tracks,
-                             player_colours)
+    omp_set_lock(cython.address(node.access_lock))
+
+    # If the node has not been expanded by another thread, expand it
+    if not node.expanded:
+        expand_mcts_node(node, stars, final_pos, colour_tracks, player_colours)
+        # LOCK IS NOT RELEASED UNTIL p FOR node IS CALCULATED. THIS IS TO MAKE SURE OTHER THREADS WAIT FOR EXPANSION COMPLETION
+    else:
+        # Else, release lock immediately and resume from selection phase
+        omp_unset_lock(cython.address(node.access_lock))
+        node = selection(node, c_puct, n_vl, move_indices, move_last, False)
+        node = expansion(node, c_puct, n_vl, move_indices, move_last, stars, final_pos, colour_tracks,
+                         player_colours)
     return node
 
 
@@ -261,14 +271,14 @@ def mcts_job(j: cython.Py_ssize_t,
              stars: cython.pointer(cython.short),
              final_pos: cython.pointer(cython.short),
              colour_tracks: cython.pointer(cython.short),
-             player_colours: cython.pointer(cython.short)) -> cython.void:
+             player_colours: cython.pointer(cython.short)) -> cython.int:
     node: cython.pointer(MCTSNode) = root
     move_indices: cython.pointer(cython.int) = cython.cast(cython.pointer(cython.int),
                                                            calloc(max_depth, cython.sizeof(cython.int)))
     move_last: cython.int = 0
 
     # SELECTION
-    node = selection(node, c_puct, n_vl, move_indices, cython.address(move_last))
+    node = selection(node, c_puct, n_vl, move_indices, cython.address(move_last), True)
 
     # EXPANSION
     node = expansion(node, c_puct, n_vl, move_indices, cython.address(move_last), stars, final_pos, colour_tracks,
@@ -291,6 +301,7 @@ def mcts_job(j: cython.Py_ssize_t,
             while eq.queue_struct.queue[future_ids[i]].pending:
                 sleep(0.0001)
             results[i] = eq.queue_struct.queue[future_ids[i]].result
+        free(future_ids)
     else:
         # Checking if player is winner.
         # Alternatively we can check whether this player has already finished his game. This only works if the game
@@ -303,7 +314,6 @@ def mcts_job(j: cython.Py_ssize_t,
             results[i] = result_val
 
     # BACKUP
-
     # node.p = softmax(results)
     sum_exp: cython.double = 0.0
     i: cython.Py_ssize_t
@@ -320,7 +330,7 @@ def mcts_job(j: cython.Py_ssize_t,
         v += node.p[i] * results[i]
     omp_unset_lock(cython.address(node.access_lock))
     node = node.parent
-
+    depth: cython.int = move_last
     while move_last > 0:
         move_last -= 1
         player_multiplier: cython.int = -1
@@ -333,6 +343,7 @@ def mcts_job(j: cython.Py_ssize_t,
         omp_unset_lock(cython.address(node.access_lock))
     free(results)
     free(move_indices)
+    return depth
 
 
 @cython.cclass
@@ -351,6 +362,7 @@ class MCTree:
         expand_mcts_node(self.root, model.stars, model.final_pos, model.colour_tracks, model.config.player_colours)
 
     def prune_root(self, roll: list):
+        print("Inside prune")
         # Prunes the tree.
         r: cython.short = sum(roll)
         ms: cython.short = 0
@@ -362,24 +374,91 @@ class MCTree:
                 me = ms + self.root.roll_num_moves[i]
                 break
             s1 += self.root.roll_num_moves[i]
+        print("Pruning:", self.root.move_start, self.root.move_end, ms, me)
         prune(self.root, ms, me)
+        print("After pruning")
 
-    def mcts(self, simulations: cython.int, model: ludoc.LudoModel, player: cython.short, c_puct: cython.double,
+    def mcts(self, simulations: cython.int, model: ludoc.LudoModel, c_puct: cython.double,
              n_vl: cython.int, eq: EvaluationQueue,
              max_depth: cython.int):
         # Runs MCTS for simulations using prange
         i: cython.Py_ssize_t
+        depths: cython.pointer(cython.int) = cython.cast(cython.pointer(cython.int),
+                                                         calloc(simulations, cython.sizeof(cython.int)))
         for i in prange(simulations, nogil=True):
-            mcts_job(i, self.root, player, c_puct, n_vl, eq, max_depth, model.stars, model.final_pos,
-                     model.colour_tracks, model.config.player_colours)
+            depths[i] = mcts_job(i, self.root, self.owner, c_puct, n_vl, eq, max_depth, model.stars, model.final_pos,
+                                 model.colour_tracks, model.config.player_colours)
+        max_depth: cython.int = 0
+        for i in range(simulations):
+            if depths[i] > max_depth:
+                max_depth = depths[i]
+        free(depths)
+        return max_depth
 
-    def take_move(self, move_idx: cython.short):
+    def select_next_move(self):
+        # Make sure you call it on an expanded node, otherwise suffer the consequences
+
+        # pi(a|s) = N(s,a) / sum(N(s,.))
+        num_available_moves: cython.int = self.root.move_end - self.root.move_start
+        probs: cython.pointer(cython.double) = cython.cast(cython.pointer(cython.double),
+                                                           calloc(num_available_moves, cython.sizeof(cython.double)))
+
+        sum: cython.double = 0.0
+        i: cython.Py_ssize_t
+        for i in range(num_available_moves):
+            sum += self.root.n[self.root.move_start + i]
+        for i in range(num_available_moves):
+            probs[i] = cython.cast(cython.double, self.root.n[self.root.move_start + i]) / sum
+
+        # Sampling from pi(a|s)
+        random: cython.double = cython.cast(cython.double, rand()) / cython.cast(cython.double, RAND_MAX);
+        sum = 0.0
+        selected_move_idx: cython.int = self.root.move_start
+        for i in range(num_available_moves):
+            sum += probs[i]
+            if random < sum:
+                selected_move_idx = i + self.root.move_start
+                break
+
+        free(probs)
+
+        # Sending back the data in a format that the user understands
+        selected_move: ludoc.MoveStruct = self.root.all_moves[selected_move_idx]
+        move_for_game_engine = []
+        if selected_move.n_rolls == 0:
+            move_for_game_engine = [[]]
+        else:
+            mappings = {
+                "pawn": ["", "R1", "R2", "R3", "R4", "G1", "G2", "G3", "G4", "Y1", "Y2", "Y3", "Y4", "B1", "B2", "B3",
+                         "B4"],
+                "pos": ["", "RB1", "RB2", "RB3", "RB4", "GB1", "GB2", "GB3", "GB4", "YB1", "YB2", "YB3", "YB4", "BB1",
+                        "BB2", "BB3", "BB4"]
+                       + [f"P{i + 1}" for i in range(52)]
+                       + ["RH1", "RH2", "RH3", "RH4", "RH5", "RH6", "GH1", "GH2", "GH3", "GH4", "GH5", "GH6", "YH1", "YH2",
+                          "YH3", "YH4", "YH5", "YH6", "BH1", "BH2", "BH3", "BH4", "BH5", "BH6"]
+            }
+            for i in range(selected_move.n_rolls):
+                if selected_move.pawns[i] > 16:
+                    p = []
+                    p1: cython.int = selected_move.pawns[i]
+                    while p1 != 0:
+                        p.append(mappings["pawn"][p1 % 17])
+                        p1 //= 17
+                else:
+                    p = mappings["pawn"][selected_move.pawns[i]]
+                move_for_game_engine.append(
+                    [p, mappings["pos"][selected_move.current_positions[i]], mappings["pos"][selected_move.destinations[i]]])
+        return selected_move_idx, move_for_game_engine
+
+    def take_move(self, move_idx: cython.short, model: ludoc.LudoModel):
         # Takes the move, updates the tree and root.
         previous_root: cython.pointer(MCTSNode) = self.root
         self.root = previous_root.children[move_idx]
         previous_root.children[
-            move_idx] = cython.NULL  # Dereferencing the child before it gets freed by the next free node function call
+            move_idx] = cython.NULL  # Dereferencing the selected child from the parent before it gets freed by the following free node function call
         free_mcts_node(previous_root)
+        if not self.root.expanded:
+            self.expand_root(model)
 
     def __dealloc__(self):
         free_mcts_node(self.root)
