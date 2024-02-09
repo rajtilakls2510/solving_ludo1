@@ -194,7 +194,7 @@ def expansion(node: MCTSNode, c_puct: cython.double, n_vl: cython.int, move_indi
 @cython.cfunc
 @cython.nogil
 @cython.exceptval(check=False)
-def mcts_job(j: cython.Py_ssize_t, root: MCTSNode, player: cython.short, c_puct: cython.double, n_vl: cython.int, eq: EvaluationQueue,
+def mcts_job(j: cython.Py_ssize_t, model: ludoc.LudoModel, root: MCTSNode, player: cython.short, c_puct: cython.double, n_vl: cython.int, eq: EvaluationQueue,
              max_depth: cython.int) -> cython.void:
     node: MCTSNode = root
     move_indices: cython.pointer(cython.int) = cython.cast(cython.pointer(cython.int),
@@ -220,6 +220,9 @@ def mcts_job(j: cython.Py_ssize_t, root: MCTSNode, player: cython.short, c_puct:
             while eq.queue_struct.queue[future_ids[i]].pending:
                 sleep(0.0001)
             results[i] = eq.queue_struct.queue[future_ids[i]].result
+    else:
+        # TODO: Write winner finding logic
+        pass
 
     # BACKUP
 
@@ -251,12 +254,12 @@ class MCTree:
         # TODO: Prune
         pass
 
-    def mcts(self, simulations: cython.int, player: cython.short, c_puct: cython.double, n_vl: cython.int, eq: EvaluationQueue,
+    def mcts(self, simulations: cython.int, model: ludoc.LudoModel, player: cython.short, c_puct: cython.double, n_vl: cython.int, eq: EvaluationQueue,
              max_depth: cython.int):
         # Runs MCTS for simulations using prange
         i: cython.Py_ssize_t
         for i in prange(simulations, nogil=True):
-            mcts_job(i, self.root, player, c_puct, n_vl, eq, max_depth)
+            mcts_job(i, model, self.root, player, c_puct, n_vl, eq, max_depth)
 
     def take_move(self, move_idx: cython.short):
         # Takes the move, updates the tree and root.

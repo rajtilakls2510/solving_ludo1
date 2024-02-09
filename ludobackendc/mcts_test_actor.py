@@ -47,7 +47,7 @@ if __name__ == "__main__":
     t1.start()
 
     # Searching and Selecting move
-    trees[player].mcts(simulations=1000, player=0, c_puct=3.0, n_vl=3, eq=eq, max_depth=1000)
+    trees[player].mcts(simulations=1000, model=game_engine.model, player=0, c_puct=3.0, n_vl=3, eq=eq, max_depth=1000)
     move_idx = trees[player].select_next_move()
     # TODO: Take next move
     trees[player].take_move(move_idx) # TODO: Figure this out

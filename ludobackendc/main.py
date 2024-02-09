@@ -16,10 +16,12 @@ try:
     print(state.get())
     start = time.perf_counter_ns()
     state = model.generate_next_state(state, [[['Y1', 'Y2'], 'P3', 'P6'], ['R1', 'P22', 'P23']])
-    end = time.perf_counter_ns()
-    print(state.get())
-    print(f"Time {(end - start) / 1e6} ms")
+
+    # print(state.get())
+
     moves = model.all_possible_moves(state)
+    end = time.perf_counter_ns()
+    print(f"Time {(end - start) / 1e6} ms")
     pprint.pprint(moves)
 except Exception as e:
     print(e)

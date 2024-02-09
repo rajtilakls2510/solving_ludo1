@@ -19,9 +19,9 @@ else:
     openmp_arg = '-fopenmp'
 
 ext_modules = [
+    Extension("cytime", ["cytime/*.pyx", "cytime/timemodule.c"]),
     Extension("ludoc", ["ludoc.py"], extra_compile_args=[openmp_arg], extra_link_args=[openmp_arg]),
     Extension("mcts", ["mcts.py"], extra_compile_args=[openmp_arg], extra_link_args=[openmp_arg]),
-    Extension("cytime", ["cytime/*.pyx", "cytime/timemodule.c"], extra_compile_args=["/openmp"], extra_link_args=["/openmp"]) # -fopenmp
 ]
 
 setup(name="ludo", ext_modules=cythonize(ext_modules, annotate=True, compiler_directives={"language_level": "3"}))

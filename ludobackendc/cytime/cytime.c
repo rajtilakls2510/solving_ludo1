@@ -6,12 +6,6 @@
         "depends": [
             "cytime\\timemodule.c"
         ],
-        "extra_compile_args": [
-            "/openmp"
-        ],
-        "extra_link_args": [
-            "/openmp"
-        ],
         "include_dirs": [
             "cytime"
         ],
@@ -1895,42 +1889,8 @@ static int __pyx_m_traverse(PyObject *m, visitproc visit, void *arg) {
 #define __pyx_n_s_test __pyx_mstate_global->__pyx_n_s_test
 /* #### Code section: module_code ### */
 
-/* "cytime.pyx":5
+/* "cytime.pyx":4
  *     int floatsleep(double secs)
- * 
- * cdef double time() noexcept nogil:             # <<<<<<<<<<<<<<
- *     return floattime()
- * 
- */
-
-static double __pyx_f_6cytime_time(void) {
-  double __pyx_r;
-
-  /* "cytime.pyx":6
- * 
- * cdef double time() noexcept nogil:
- *     return floattime()             # <<<<<<<<<<<<<<
- * 
- * cdef int sleep(double secs) noexcept nogil:
- */
-  __pyx_r = floattime();
-  goto __pyx_L0;
-
-  /* "cytime.pyx":5
- *     int floatsleep(double secs)
- * 
- * cdef double time() noexcept nogil:             # <<<<<<<<<<<<<<
- *     return floattime()
- * 
- */
-
-  /* function exit code */
-  __pyx_L0:;
-  return __pyx_r;
-}
-
-/* "cytime.pyx":8
- *     return floattime()
  * 
  * cdef int sleep(double secs) noexcept nogil:             # <<<<<<<<<<<<<<
  *     return floatsleep(secs)
@@ -1939,7 +1899,7 @@ static double __pyx_f_6cytime_time(void) {
 static int __pyx_f_6cytime_sleep(double __pyx_v_secs) {
   int __pyx_r;
 
-  /* "cytime.pyx":9
+  /* "cytime.pyx":5
  * 
  * cdef int sleep(double secs) noexcept nogil:
  *     return floatsleep(secs)             # <<<<<<<<<<<<<<
@@ -1947,8 +1907,8 @@ static int __pyx_f_6cytime_sleep(double __pyx_v_secs) {
   __pyx_r = floatsleep(__pyx_v_secs);
   goto __pyx_L0;
 
-  /* "cytime.pyx":8
- *     return floattime()
+  /* "cytime.pyx":4
+ *     int floatsleep(double secs)
  * 
  * cdef int sleep(double secs) noexcept nogil:             # <<<<<<<<<<<<<<
  *     return floatsleep(secs)
@@ -2043,7 +2003,6 @@ static int __Pyx_modinit_function_export_code(void) {
   __Pyx_RefNannySetupContext("__Pyx_modinit_function_export_code", 0);
   /*--- Function export code ---*/
   if (__Pyx_ExportFunction("sleep", (void (*)(void))__pyx_f_6cytime_sleep, "int (double)") < 0) __PYX_ERR(0, 1, __pyx_L1_error)
-  if (__Pyx_ExportFunction("time", (void (*)(void))__pyx_f_6cytime_time, "double (void)") < 0) __PYX_ERR(0, 1, __pyx_L1_error)
   __Pyx_RefNannyFinishContext();
   return 0;
   __pyx_L1_error:;
@@ -2363,8 +2322,8 @@ if (!__Pyx_RefNanny) {
 
   /* "cytime.pyx":1
  * cdef extern from "timemodule.c" nogil:             # <<<<<<<<<<<<<<
- *     double floattime()
  *     int floatsleep(double secs)
+ * 
  */
   __pyx_t_2 = __Pyx_PyDict_NewPresized(0); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);

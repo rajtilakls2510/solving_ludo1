@@ -46,3 +46,17 @@ cdef void free_all_possible_moves_return(AllPossibleMovesReturn all_moves) noexc
 cdef class State:
     cdef StateStruct state_struct
     cdef void set_structure(State s, StateStruct st)
+
+cdef class GameConfig:
+    cdef public:
+        short n_players
+    cdef short* player_colours
+    cdef short[5] colour_player
+
+cdef class LudoModel:
+    cdef public:
+        GameConfig config
+    cdef short* stars
+    cdef short* final_pos
+    cdef short* colour_tracks
+    cdef short* colour_bases

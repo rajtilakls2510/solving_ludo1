@@ -300,22 +300,9 @@ body.cython { font-family: courier; font-size: 12; }
   <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_t_2);
   if (<span class='py_c_api'>PyDict_SetItem</span>(__pyx_d, __pyx_n_s_test, __pyx_t_2) &lt; 0) <span class='error_goto'>__PYX_ERR(0, 1, __pyx_L1_error)</span>
   <span class='pyx_macro_api'>__Pyx_DECREF</span>(__pyx_t_2); __pyx_t_2 = 0;
-</pre><pre class="cython line score-0">&#xA0;<span class="">2</span>:     double floattime()</pre>
-<pre class="cython line score-0">&#xA0;<span class="">3</span>:     int floatsleep(double secs)</pre>
-<pre class="cython line score-0">&#xA0;<span class="">4</span>: </pre>
-<pre class="cython line score-0" onclick="(function(s){s.display=s.display==='block'?'none':'block'})(this.nextElementSibling.style)">+<span class="">5</span>: cdef double time() noexcept nogil:</pre>
-<pre class='cython code score-0 '>static double __pyx_f_6cytime_time(void) {
-  double __pyx_r;
-/* … */
-  /* function exit code */
-  __pyx_L0:;
-  return __pyx_r;
-}
-</pre><pre class="cython line score-0" onclick="(function(s){s.display=s.display==='block'?'none':'block'})(this.nextElementSibling.style)">+<span class="">6</span>:     return floattime()</pre>
-<pre class='cython code score-0 '>  __pyx_r = floattime();
-  goto __pyx_L0;
-</pre><pre class="cython line score-0">&#xA0;<span class="">7</span>: </pre>
-<pre class="cython line score-0" onclick="(function(s){s.display=s.display==='block'?'none':'block'})(this.nextElementSibling.style)">+<span class="">8</span>: cdef int sleep(double secs) noexcept nogil:</pre>
+</pre><pre class="cython line score-0">&#xA0;<span class="">2</span>:     int floatsleep(double secs)</pre>
+<pre class="cython line score-0">&#xA0;<span class="">3</span>: </pre>
+<pre class="cython line score-0" onclick="(function(s){s.display=s.display==='block'?'none':'block'})(this.nextElementSibling.style)">+<span class="">4</span>: cdef int sleep(double secs) noexcept nogil:</pre>
 <pre class='cython code score-0 '>static int __pyx_f_6cytime_sleep(double __pyx_v_secs) {
   int __pyx_r;
 /* … */
@@ -323,7 +310,7 @@ body.cython { font-family: courier; font-size: 12; }
   __pyx_L0:;
   return __pyx_r;
 }
-</pre><pre class="cython line score-0" onclick="(function(s){s.display=s.display==='block'?'none':'block'})(this.nextElementSibling.style)">+<span class="">9</span>:     return floatsleep(secs)</pre>
+</pre><pre class="cython line score-0" onclick="(function(s){s.display=s.display==='block'?'none':'block'})(this.nextElementSibling.style)">+<span class="">5</span>:     return floatsleep(secs)</pre>
 <pre class='cython code score-0 '>  __pyx_r = floatsleep(__pyx_v_secs);
   goto __pyx_L0;
 </pre></div></body></html>

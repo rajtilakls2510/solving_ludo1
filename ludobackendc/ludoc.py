@@ -782,7 +782,7 @@ def all_possible_moves1(state: StateStruct, stars: cython.p_short, final_pos: cy
 
 @cython.cclass
 class GameConfig:
-    n_players = cython.declare(cython.short, visibility='public')
+    # n_players = cython.declare(cython.short, visibility='public')
     player_colours: cython.p_short
     colour_player: cython.short[5]
 
@@ -998,7 +998,7 @@ class State:
 
 @cython.cclass
 class LudoModel:
-    config = cython.declare(GameConfig, visibility="public")
+    # config = cython.declare(GameConfig, visibility="public")
     stars: cython.p_short
     final_pos: cython.p_short
     colour_tracks: cython.p_short
