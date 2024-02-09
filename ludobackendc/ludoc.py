@@ -143,6 +143,15 @@ def copy_move(move: MoveStruct) -> MoveStruct:  # DO WE NOT NEED TO SEND BACK A 
 @cython.cfunc
 @cython.nogil
 @cython.exceptval(check=False)
+def roll_sum_to_mod(roll_sum: cython.short) -> cython.short:
+    if roll_sum - 6 > 0:
+        return roll_sum_to_mod(roll_sum - 6) * 7 + 6
+    return roll_sum
+
+
+@cython.cfunc
+@cython.nogil
+@cython.exceptval(check=False)
 def move_single_pawn(state: StateStruct, player: cython.short, pawn: cython.int, current_pos: cython.short,
                      destination: cython.short) -> cython.void:
     new_pawns: cython.int = 0
@@ -782,6 +791,16 @@ def all_possible_moves1(state: StateStruct, stars: cython.p_short, final_pos: cy
             return_struct.roll_moves[i] = moves_returned.moves
     return return_struct
 
+@cython.cfunc
+@cython.nogil
+@cython.exceptval(check=False)
+def check_completed1(state: StateStruct, player: cython.short, final_pos: cython.pointer(cython.short)) -> cython.bint:
+    # Checks whether player has completed his game
+    j: cython.short
+    for j in range(93):
+        if final_pos[j] != 1 and state.pawn_pos[player * 93 + j] > 0:
+            return False
+    return True
 
 @cython.cclass
 class GameConfig:
@@ -1118,7 +1137,6 @@ class LudoModel:
                         p = mappings["pawn"][move_struct.pawns[j]]
                     move.append([p, mappings["pos"][move_struct.current_positions[j]], mappings["pos"][move_struct.destinations[j]]])
                 validated_moves.append(move)
-                # WINDOWS PROBLEM: HEAP CORRUPTION
             possible_moves.append({"roll": roll, "moves": validated_moves})
         possible_moves.append({"roll": [6, 6, 6], "moves": []})
 
@@ -1126,11 +1144,7 @@ class LudoModel:
         return possible_moves
 
     def check_completed(self, state: State, player: cython.short):
-        j: cython.short
-        for j in range(93):
-            if self.final_pos[j] != 1 and state.state_struct.pawn_pos[player * 93 + j] > 0:
-                return False
-        return True
+        return check_completed1(state.state_struct, player, self.final_pos)
 
     def get_state_jsonable(self, state: State):
         new_state = {}

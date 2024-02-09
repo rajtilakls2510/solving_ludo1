@@ -13,6 +13,6 @@ cdef struct MCTSNode:
     short move_end
     double* p
     int* n
-    int* w
+    double* w
     double* q
 
