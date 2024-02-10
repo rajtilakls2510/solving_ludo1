@@ -4,13 +4,11 @@ import time
 import threading
 import psutil
 import tensorflow as tf
-
 tf.config.experimental.set_memory_growth(tf.config.list_physical_devices("GPU")[0], True)
 
 BATCH_SIZE = 512
 
-
-@tf.function
+@tf.function(reduce_retracing=True)
 def eval(network, inputs):
     return network(inputs, training=False)[:, 0]
 
@@ -51,14 +49,14 @@ if __name__ == "__main__":
         for tree in trees:
             tree.prune_root(state["dice_roll"])
         # Initializing Evaluation Resources
-        eq = mcts.EvaluationQueue(length=100_000, config=game_engine.model.config)
+        eq = mcts.EvaluationQueue(length=10_000, config=game_engine.model.config)
         t1 = threading.Thread(target=evaluator, args=(eq, player))
         t1.start()
 
         start = time.perf_counter_ns()
         # Searching
         print("Max Depth:",
-              trees[player].mcts(simulations=100, model=game_engine.model, c_puct=3.0, n_vl=3, eq=eq, max_depth=1000))
+              trees[player].mcts(simulations=3000, model=game_engine.model, c_puct=3.0, n_vl=3, eq=eq, max_depth=1000))
         end = time.perf_counter_ns()
         print("Time:", (end - start) / 1e6, "ms")
 

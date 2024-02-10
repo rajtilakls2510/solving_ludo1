@@ -137,6 +137,8 @@ def expand_mcts_node(node: cython.pointer(MCTSNode),
 
             # Allocating statistics for node
             node.p = cython.cast(cython.pointer(cython.double), calloc(total_moves, cython.sizeof(cython.double)))
+            for i in range(total_moves):
+                node.p[i] = 1.0
             node.n = cython.cast(cython.pointer(cython.int), calloc(total_moves, cython.sizeof(cython.int)))
             node.w = cython.cast(cython.pointer(cython.double), calloc(total_moves, cython.sizeof(cython.double)))
             node.q = cython.cast(cython.pointer(cython.double), calloc(total_moves, cython.sizeof(cython.double)))
@@ -288,41 +290,49 @@ def mcts_job(j: cython.Py_ssize_t,
     # EVALUATION
     v: cython.double = 0.0
     if not node.state.game_over:
-        results: cython.pointer(cython.double) = cython.cast(cython.pointer(cython.double),
-                                                             calloc(node.move_end - node.move_start,
-                                                                    cython.sizeof(cython.double)))
-        future_ids: cython.pointer(cython.int) = cython.cast(cython.pointer(cython.int),
-                                                             calloc(node.move_end - node.move_start,
-                                                                    cython.sizeof(cython.int)))
-        i: cython.Py_ssize_t
-        for i in range(node.move_end - node.move_start):
-            next_state: ludoc.StateStruct = node.children[i].state
-            next_state.current_player = player
-            future_ids[i] = add_to_eq(eq.queue_struct, next_state, cython.address(eq.insertion_lock))
-            if future_ids[i] == -1:
-                with cython.gil:
-                    print("Evaluation Queue Size Exceeded")
-        for i in range(node.move_end - node.move_start):
-            while eq.queue_struct.queue[future_ids[i]].pending:
-                sleep(0.001)
-            results[i] = eq.queue_struct.queue[future_ids[i]].result
+        node.state.current_player = player
+        future_id: cython.int = add_to_eq(eq.queue_struct, node.state, cython.address(eq.insertion_lock))
+        if future_id == -1:
+            with cython.gil:
+                print("Evaluation Queue Size Exceeded")
+        while eq.queue_struct.queue[future_id].pending:
+            sleep(0.0001)
+        v = eq.queue_struct.queue[future_id].result
+        # results: cython.pointer(cython.double) = cython.cast(cython.pointer(cython.double),
+        #                                                      calloc(node.move_end - node.move_start,
+        #                                                             cython.sizeof(cython.double)))
+        # future_ids: cython.pointer(cython.int) = cython.cast(cython.pointer(cython.int),
+        #                                                      calloc(node.move_end - node.move_start,
+        #                                                             cython.sizeof(cython.int)))
+        # i: cython.Py_ssize_t
+        # for i in range(node.move_end - node.move_start):
+        #     next_state: ludoc.StateStruct = node.children[i].state
+        #     next_state.current_player = player
+        #     future_ids[i] = add_to_eq(eq.queue_struct, next_state, cython.address(eq.insertion_lock))
+        #     if future_ids[i] == -1:
+        #         with cython.gil:
+        #             print("Evaluation Queue Size Exceeded")
+        # for i in range(node.move_end - node.move_start):
+        #     while eq.queue_struct.queue[future_ids[i]].pending:
+        #         sleep(0.001)
+        #     results[i] = eq.queue_struct.queue[future_ids[i]].result
 
         # node.p = softmax(results)
-        sum_exp: cython.double = 0.0
-        i: cython.Py_ssize_t
-        for i in range(node.move_end - node.move_start):
-            result: cython.double = exp(results[i])
-            node.p[i] = result
-            sum_exp += result
-        for i in range(node.move_end - node.move_start):
-            node.p[i] /= sum_exp
+        # sum_exp: cython.double = 0.0
+        # i: cython.Py_ssize_t
+        # for i in range(node.move_end - node.move_start):
+        #     result: cython.double = exp(results[i])
+        #     node.p[i] = result
+        #     sum_exp += result
+        # for i in range(node.move_end - node.move_start):
+        #     node.p[i] /= sum_exp
 
         # v = sum(node.p * results)
-        v = 0.0
-        for i in range(node.move_end - node.move_start):
-            v += node.p[i] * results[i]
-        free(future_ids)
-        free(results)
+        # v = 0.0
+        # for i in range(node.move_end - node.move_start):
+        #     v += node.p[i] * results[i]
+        # free(future_ids)
+        # free(results)
     else:
         # Checking if player is winner.
         # Alternatively we can check whether this player has already finished his game. This only works if the game
@@ -416,8 +426,8 @@ class MCTree:
         probs_list = []
         for i in range(num_available_moves):
             probs[i] = cython.cast(cython.double, self.root.n[self.root.move_start + i]) / sum
-            probs_list.append([probs[i], self.root.n[self.root.move_start + i], self.root.q[self.root.move_start + i],
-                               self.root.w[self.root.move_start + i]])
+            probs_list.append([probs[i], self.root.n[self.root.move_start + i], self.root.w[self.root.move_start + i],
+                               self.root.q[self.root.move_start + i]])
 
         # Sampling from pi(a|s)
         random: cython.double = cython.cast(cython.double, rand()) / cython.cast(cython.double, RAND_MAX);
@@ -550,7 +560,7 @@ class EvaluationQueue:
             self.queue_struct.front].pending:
             self.queue_struct.front = (self.queue_struct.front + 1) % self.queue_struct.length
 
-        print(self.queue_struct.front, self.queue_struct.rear)
+        #print(self.queue_struct.front, self.queue_struct.rear)
 
     def set_stop(self):
         self.stop = True
