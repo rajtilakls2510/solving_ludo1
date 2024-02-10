@@ -38,7 +38,7 @@ def free_mcts_node(node: cython.pointer(MCTSNode)) -> cython.void:
     if node != cython.NULL:
         ludoc.free_state(node.state)
         omp_destroy_lock(cython.address(node.access_lock))
-        if node.expanded:
+        if node.expanded and not node.state.game_over:
             if node.children != cython.NULL:
                 i: cython.Py_ssize_t
                 for i in range(node.move_start, node.move_end):
@@ -182,7 +182,7 @@ def selection(node: cython.pointer(MCTSNode), c_puct: cython.double, n_vl: cytho
     # When we find a node which is not expanded. It may also happen that after this instruction, another thread starts expanding the node.
     # But we make sure to continue selection for this thread later.
     k: cython.int = 0
-    while node.expanded:
+    while node.expanded and not node.state.game_over:
         ms: cython.short = 0
         me: cython.short = 0
         if skip_initial_node:
@@ -245,6 +245,7 @@ def expansion(node: cython.pointer(MCTSNode),
               final_pos: cython.pointer(cython.short),
               colour_tracks: cython.pointer(cython.short),
               player_colours: cython.pointer(cython.short)) -> cython.pointer(MCTSNode):
+
     omp_set_lock(cython.address(node.access_lock))
 
     # If the node has not been expanded by another thread, expand it
@@ -254,9 +255,10 @@ def expansion(node: cython.pointer(MCTSNode),
     else:
         # Else, release lock immediately and resume from selection phase
         omp_unset_lock(cython.address(node.access_lock))
-        node = selection(node, c_puct, n_vl, move_indices, move_last, False)
-        node = expansion(node, c_puct, n_vl, move_indices, move_last, stars, final_pos, colour_tracks,
-                         player_colours)
+        if not node.state.game_over:
+            node = selection(node, c_puct, n_vl, move_indices, move_last, False)
+            node = expansion(node, c_puct, n_vl, move_indices, move_last, stars, final_pos, colour_tracks,
+                             player_colours)
     return node
 
 
@@ -285,10 +287,11 @@ def mcts_job(j: cython.Py_ssize_t,
                      player_colours)
 
     # EVALUATION
-    results: cython.pointer(cython.double) = cython.cast(cython.pointer(cython.double),
-                                                         calloc(node.move_end - node.move_start,
-                                                                cython.sizeof(cython.double)))
+    v: cython.double = 0.0
     if not node.state.game_over:
+        results: cython.pointer(cython.double) = cython.cast(cython.pointer(cython.double),
+                                                             calloc(node.move_end - node.move_start,
+                                                                    cython.sizeof(cython.double)))
         future_ids: cython.pointer(cython.int) = cython.cast(cython.pointer(cython.int),
                                                              calloc(node.move_end - node.move_start,
                                                                     cython.sizeof(cython.int)))
@@ -301,33 +304,33 @@ def mcts_job(j: cython.Py_ssize_t,
             while eq.queue_struct.queue[future_ids[i]].pending:
                 sleep(0.0001)
             results[i] = eq.queue_struct.queue[future_ids[i]].result
+
+        # node.p = softmax(results)
+        sum_exp: cython.double = 0.0
+        i: cython.Py_ssize_t
+        for i in range(node.move_end - node.move_start):
+            result: cython.double = exp(results[i])
+            node.p[i] = result
+            sum_exp += result
+        for i in range(node.move_end - node.move_start):
+            node.p[i] /= sum_exp
+
+        # v = sum(node.p * results)
+        v = 0.0
+        for i in range(node.move_end - node.move_start):
+            v += node.p[i] * results[i]
         free(future_ids)
+        free(results)
     else:
         # Checking if player is winner.
         # Alternatively we can check whether this player has already finished his game. This only works if the game
         # is over after one player completes.
-        result_val: cython.short = -1
+        v = -1.0
         if ludoc.check_completed1(node.state, player, final_pos):
-            result_val = 1
-        i: cython.Py_ssize_t
-        for i in range(node.move_end - node.move_start):
-            results[i] = result_val
+            v = 1.0
 
     # BACKUP
-    # node.p = softmax(results)
-    sum_exp: cython.double = 0.0
-    i: cython.Py_ssize_t
-    for i in range(node.move_end - node.move_start):
-        result: cython.double = exp(results[i])
-        node.p[i] = result
-        sum_exp += result
-    for i in range(node.move_end - node.move_start):
-        node.p[i] /= sum_exp
 
-    # v = sum(node.p * results)
-    v: cython.double = 0.0
-    for i in range(node.move_end - node.move_start):
-        v += node.p[i] * results[i]
     omp_unset_lock(cython.address(node.access_lock))
     node = node.parent
     depth: cython.int = move_last
@@ -341,7 +344,8 @@ def mcts_job(j: cython.Py_ssize_t,
         node.w[move_indices[move_last]] += (player_multiplier * v) + n_vl
         node.q[move_indices[move_last]] = node.w[move_indices[move_last]] / node.n[move_indices[move_last]]
         omp_unset_lock(cython.address(node.access_lock))
-    free(results)
+        node = node.parent
+
     free(move_indices)
     return depth
 
@@ -407,8 +411,10 @@ class MCTree:
         i: cython.Py_ssize_t
         for i in range(num_available_moves):
             sum += self.root.n[self.root.move_start + i]
+        probs_list = []
         for i in range(num_available_moves):
             probs[i] = cython.cast(cython.double, self.root.n[self.root.move_start + i]) / sum
+            probs_list.append([probs[i], self.root.n[self.root.move_start + i], self.root.q[self.root.move_start + i], self.root.w[self.root.move_start + i]])
 
         # Sampling from pi(a|s)
         random: cython.double = cython.cast(cython.double, rand()) / cython.cast(cython.double, RAND_MAX);
@@ -448,7 +454,7 @@ class MCTree:
                     p = mappings["pawn"][selected_move.pawns[i]]
                 move_for_game_engine.append(
                     [p, mappings["pos"][selected_move.current_positions[i]], mappings["pos"][selected_move.destinations[i]]])
-        return selected_move_idx, move_for_game_engine
+        return selected_move_idx, move_for_game_engine, probs_list
 
     def take_move(self, move_idx: cython.short, model: ludoc.LudoModel):
         # Takes the move, updates the tree and root.

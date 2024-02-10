@@ -36,7 +36,7 @@ if __name__ == "__main__":
 
     state = game_engine.state.get()
     print(state)
-    for _ in range(6):
+    while not state["game_over"]:
         player = state["current_player"]
         print("For Player:", player)
         for tree in trees:
@@ -59,12 +59,14 @@ if __name__ == "__main__":
         del eq
 
         # Selecting and taking move
-        move_for_tree, move_for_engine = trees[player].select_next_move()
+        move_for_tree, move_for_engine, probs_list = trees[player].select_next_move()
         print(move_for_engine, move_for_tree)
+        print(probs_list)
         game_engine.turn(move_for_engine, state["last_move_id"] + 1)
         state = game_engine.state.get()
         print(state, "memory", psutil.Process().memory_info().rss / 1024 ** 2)
         for tree in trees:
+            print(f"Taking move on tree: {tree.owner}")
             tree.take_move(move_for_tree, game_engine.model)
         print("memory after", psutil.Process().memory_info().rss / 1024 ** 2)
 
