@@ -245,7 +245,6 @@ def expansion(node: cython.pointer(MCTSNode),
               final_pos: cython.pointer(cython.short),
               colour_tracks: cython.pointer(cython.short),
               player_colours: cython.pointer(cython.short)) -> cython.pointer(MCTSNode):
-
     omp_set_lock(cython.address(node.access_lock))
 
     # If the node has not been expanded by another thread, expand it
@@ -300,9 +299,12 @@ def mcts_job(j: cython.Py_ssize_t,
             next_state: ludoc.StateStruct = node.children[i].state
             next_state.current_player = player
             future_ids[i] = add_to_eq(eq.queue_struct, next_state, cython.address(eq.insertion_lock))
+            if future_ids[i] == -1:
+                with cython.gil:
+                    print("Evaluation Queue Size Exceeded")
         for i in range(node.move_end - node.move_start):
             while eq.queue_struct.queue[future_ids[i]].pending:
-                sleep(0.0001)
+                sleep(0.001)
             results[i] = eq.queue_struct.queue[future_ids[i]].result
 
         # node.p = softmax(results)
@@ -414,7 +416,8 @@ class MCTree:
         probs_list = []
         for i in range(num_available_moves):
             probs[i] = cython.cast(cython.double, self.root.n[self.root.move_start + i]) / sum
-            probs_list.append([probs[i], self.root.n[self.root.move_start + i], self.root.q[self.root.move_start + i], self.root.w[self.root.move_start + i]])
+            probs_list.append([probs[i], self.root.n[self.root.move_start + i], self.root.q[self.root.move_start + i],
+                               self.root.w[self.root.move_start + i]])
 
         # Sampling from pi(a|s)
         random: cython.double = cython.cast(cython.double, rand()) / cython.cast(cython.double, RAND_MAX);
@@ -440,7 +443,8 @@ class MCTree:
                 "pos": ["", "RB1", "RB2", "RB3", "RB4", "GB1", "GB2", "GB3", "GB4", "YB1", "YB2", "YB3", "YB4", "BB1",
                         "BB2", "BB3", "BB4"]
                        + [f"P{i + 1}" for i in range(52)]
-                       + ["RH1", "RH2", "RH3", "RH4", "RH5", "RH6", "GH1", "GH2", "GH3", "GH4", "GH5", "GH6", "YH1", "YH2",
+                       + ["RH1", "RH2", "RH3", "RH4", "RH5", "RH6", "GH1", "GH2", "GH3", "GH4", "GH5", "GH6", "YH1",
+                          "YH2",
                           "YH3", "YH4", "YH5", "YH6", "BH1", "BH2", "BH3", "BH4", "BH5", "BH6"]
             }
             for i in range(selected_move.n_rolls):
@@ -453,7 +457,8 @@ class MCTree:
                 else:
                     p = mappings["pawn"][selected_move.pawns[i]]
                 move_for_game_engine.append(
-                    [p, mappings["pos"][selected_move.current_positions[i]], mappings["pos"][selected_move.destinations[i]]])
+                    [p, mappings["pos"][selected_move.current_positions[i]],
+                     mappings["pos"][selected_move.destinations[i]]])
         return selected_move_idx, move_for_game_engine, probs_list
 
     def take_move(self, move_idx: cython.short, model: ludoc.LudoModel):
@@ -486,7 +491,8 @@ def add_to_eq(queue: cython.pointer(EQ), data: ludoc.StateStruct,
     if (queue.rear + 1) % queue.length == queue.front:
         ret = -1
     else:
-        queue.queue[queue.rear] = QN(data=data, pending=True, result=0.0)
+        queue.queue[queue.rear] = QN(data=data, pending=True,
+                                     result=0.0)  # Make sure "data" is not freed while in queue
         ret = queue.rear
         queue.rear = (queue.rear + 1) % queue.length
     omp_unset_lock(insertion_lock)
@@ -498,8 +504,9 @@ class EvaluationQueue:
     queue_struct: cython.pointer(EQ)
     insertion_lock: omp_lock_t
     stop = cython.declare(cython.bint, visibility="public")
+    config: ludoc.GameConfig
 
-    def __init__(self, length: cython.int):
+    def __init__(self, length: cython.int, config: ludoc.GameConfig):
         self.stop = False
         omp_init_lock(cython.address(self.insertion_lock))
         self.queue_struct = cython.cast(cython.pointer(EQ), calloc(1, cython.sizeof(EQ)))
@@ -510,31 +517,40 @@ class EvaluationQueue:
         self.queue_struct.front = 0
         self.queue_struct.rear = 0
         self.queue_struct.length = length
+        self.config = config
 
-    def get_elems_pending(self, n_elems: cython.int) -> dict:
-        accumulated_data = {}
+    def get_elems_pending(self, n_elems: cython.int):
+        accumulated_data = []
+        accumulated_indices = []
         accum: cython.int = 0
         # Collect max(n_elems, number of left) Elements
         i: cython.int = self.queue_struct.front
         while i != self.queue_struct.rear and accum < n_elems:
             if self.queue_struct.queue[i].pending:
-                # self.queue_struct.queue[i].data
-                accumulated_data[i] = 0  # TODO: Translate from StateStruct to state repr in numpy
+                state: ludoc.State = ludoc.State()
+                state.set_structure(ludoc.copy_state(self.queue_struct.queue[i].data))
+                accumulated_data.append(state.get_tensor_repr(self.config))
+                accumulated_indices.append(i)
                 accum += 1
+                del state
             i = (i + 1) % self.queue_struct.length
-        return accumulated_data
+        if len(accumulated_indices) > 0:
+            return accumulated_data, accumulated_indices
+        return [], []
 
-    def set_elems_result(self, results: dict):
+    def set_elems_result(self, results, results_indices: list):
 
         # Setting the results
         i: cython.int
-        for i, res in results.items():
+        for i, res in zip(results_indices, results):
             self.queue_struct.queue[i].result = res
             self.queue_struct.queue[i].pending = False
         # Incrementing front so that queue is freed up
         while self.queue_struct.front != self.queue_struct.rear and not self.queue_struct.queue[
             self.queue_struct.front].pending:
             self.queue_struct.front = (self.queue_struct.front + 1) % self.queue_struct.length
+
+        print(self.queue_struct.front, self.queue_struct.rear)
 
     def set_stop(self):
         self.stop = True
