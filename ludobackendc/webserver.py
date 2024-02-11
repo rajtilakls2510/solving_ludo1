@@ -41,6 +41,11 @@ networks = {}
 model_path = "2023_Nov_10_04_08_24_131652"
 
 
+def simulation_schedule(move_id):
+    if move_id <= 100:
+        return 90 * move_id + 1000
+    return 10_000
+
 # TRAIN_SERVER_IP = "localhost"
 # TRAIN_SERVER_PORT = 18861
 
@@ -134,6 +139,9 @@ class Agent:
     def move_taken(self, move):
         pass
 
+    def stop(self):
+        pass
+
 
 class HumanAgent(Agent):
     def __init__(self, player_index, game_engine):
@@ -161,22 +169,22 @@ class AIAgent(Agent):
         state = self.game_engine.state.get()
         # Initializing Evaluation Resources
 
-        eq = mcts.EvaluationQueue(length=10_000, config=self.game_engine.model.config)
-        t1 = threading.Thread(target=evaluator, args=(eq, self.player_index))
+        self.eq = mcts.EvaluationQueue(length=10_000, config=self.game_engine.model.config)
+        t1 = threading.Thread(target=evaluator, args=(self.eq, self.player_index))
         t1.start()
 
         print("Searching")
         # Searching
         start = time.perf_counter_ns()
         print("Max Depth:",
-              self.tree.mcts(simulations=1500, model=self.game_engine.model, c_puct=3.0, n_vl=3, eq=eq, max_depth=1000))
+              self.tree.mcts(simulations=simulation_schedule(state["last_move_id"] + 1), model=self.game_engine.model, c_puct=3.0, n_vl=3, eq=self.eq, max_depth=1000))
         end = time.perf_counter_ns()
         print("Time:", (end - start) / 1e6, "ms")
 
         # Releasing Evaluation Resources
-        eq.set_stop()
+        self.eq.set_stop()
         t1.join()
-        del eq
+        del self.eq
         print("Selecting move")
 
         # Selecting and taking move
@@ -227,6 +235,11 @@ class AIAgent(Agent):
         self.tree.take_move(offset + moves.index(move), self.game_engine.model)
         state = self.game_engine.state.get()
         self.tree.prune_root(state["dice_roll"])
+
+    def stop(self):
+        if self.eq:
+            self.eq.set_stop()
+            del self.eq
 
 
 @app.route("/create_new_game", methods=["POST"])

@@ -1,7 +1,7 @@
 import axios from "axios";
 
 // const API_URL = "http://127.0.0.1:5000";
-const API_URL = "http://192.168.207.118:5000";
+const API_URL = "http://35.222.198.160:5000";
 
 const getCurrentBoard = () => {
   return axios.get(API_URL + "/get_current_board");

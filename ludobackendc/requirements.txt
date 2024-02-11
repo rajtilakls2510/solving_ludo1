@@ -1,0 +1,6 @@
+rpyc
+flask
+Flask-Cors
+numpy
+cython
+psutil

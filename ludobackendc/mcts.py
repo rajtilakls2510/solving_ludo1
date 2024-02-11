@@ -155,8 +155,25 @@ def expand_mcts_node(node: cython.pointer(MCTSNode),
 @cython.nogil
 @cython.exceptval(check=False)
 def get_random_roll_sum() -> cython.short:
-    p: cython.int = rand() % 16 + 1  # generate randomly out of 1 - 16
+    # generate randomly out of 1 - 16
+    probs: cython.pointer(cython.float) = cython.cast(cython.pointer(cython.float), calloc(16, cython.sizeof(cython.float)))
     i: cython.short
+    for i in range(5):
+        probs[i] = 1.0/6.0
+    for i in range(5, 10):
+        probs[i] = 1.0/36.0
+    for i in range(10, 16):
+        probs[i] = 1.0/216.0
+
+    p: cython.int = 0
+    sum: cython.float = 0.0
+    r: cython.float = cython.cast(cython.float, rand()) / cython.cast(cython.float, RAND_MAX)
+    for i in range(16):
+        sum += probs[i]
+        if r < sum:
+            p = i + 1
+            break
+    free(probs)
     for i in range(1, 7):
         if i == 6:
             j: cython.short
@@ -173,7 +190,7 @@ def get_random_roll_sum() -> cython.short:
         p -= 1
         if p == 0:
             return i
-
+    return 1
 
 @cython.cfunc
 @cython.nogil
@@ -297,7 +314,8 @@ def mcts_job(j: cython.Py_ssize_t,
                 print("Evaluation Queue Size Exceeded")
         while eq.queue_struct.queue[future_id].pending:
             sleep(0.0001)
-        v = eq.queue_struct.queue[future_id].result
+        if future_id >= 0:
+            v = eq.queue_struct.queue[future_id].result
         # results: cython.pointer(cython.double) = cython.cast(cython.pointer(cython.double),
         #                                                      calloc(node.move_end - node.move_start,
         #                                                             cython.sizeof(cython.double)))
@@ -468,7 +486,7 @@ class MCTree:
                                self.root.q[self.root.move_start + i]])
 
         # Sampling from pi(a|s)
-        random: cython.double = cython.cast(cython.double, rand()) / cython.cast(cython.double, RAND_MAX);
+        random: cython.double = cython.cast(cython.double, rand()) / cython.cast(cython.double, RAND_MAX)
         sum = 0.0
         selected_move_idx: cython.int = self.root.move_start
         for i in range(num_available_moves):
