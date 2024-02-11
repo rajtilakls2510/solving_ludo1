@@ -411,38 +411,9 @@ class MCTree:
         free(depths)
         return max_depth
 
-    def select_next_move(self):
-        # Make sure you call it on an expanded node, otherwise suffer the consequences
-
-        # pi(a|s) = N(s,a) / sum(N(s,.))
-        num_available_moves: cython.int = self.root.move_end - self.root.move_start
-        probs: cython.pointer(cython.double) = cython.cast(cython.pointer(cython.double),
-                                                           calloc(num_available_moves, cython.sizeof(cython.double)))
-
-        sum: cython.double = 0.0
-        i: cython.Py_ssize_t
-        for i in range(num_available_moves):
-            sum += self.root.n[self.root.move_start + i]
-        probs_list = []
-        for i in range(num_available_moves):
-            probs[i] = cython.cast(cython.double, self.root.n[self.root.move_start + i]) / sum
-            probs_list.append([probs[i], self.root.n[self.root.move_start + i], self.root.w[self.root.move_start + i],
-                               self.root.q[self.root.move_start + i]])
-
-        # Sampling from pi(a|s)
-        random: cython.double = cython.cast(cython.double, rand()) / cython.cast(cython.double, RAND_MAX);
-        sum = 0.0
-        selected_move_idx: cython.int = self.root.move_start
-        for i in range(num_available_moves):
-            sum += probs[i]
-            if random < sum:
-                selected_move_idx = i + self.root.move_start
-                break
-
-        free(probs)
-
-        # Sending back the data in a format that the user understands
-        selected_move: ludoc.MoveStruct = self.root.all_moves[selected_move_idx]
+    def get_root_move(self, move_idx):
+        # move_idx must be within root.move_start and root.move_end
+        selected_move: ludoc.MoveStruct = self.root.all_moves[move_idx]
         move_for_game_engine = []
         if selected_move.n_rolls == 0:
             move_for_game_engine = [[]]
@@ -469,6 +440,47 @@ class MCTree:
                 move_for_game_engine.append(
                     [p, mappings["pos"][selected_move.current_positions[i]],
                      mappings["pos"][selected_move.destinations[i]]])
+        return move_for_game_engine
+
+    def get_root_moves_list(self):
+        moves = []
+        i: cython.Py_ssize_t
+        for i in range(self.root.move_start, self.root.move_end):
+            moves.append(self.get_root_move(i))
+        return moves, self.root.move_start
+
+    def select_next_move(self, selection_temp=1.0):
+        # Make sure you call it on an expanded node, otherwise suffer the consequences
+
+        # pi(a|s) = N(s,a) / sum(N(s,.))
+        num_available_moves: cython.int = self.root.move_end - self.root.move_start
+        probs: cython.pointer(cython.double) = cython.cast(cython.pointer(cython.double),
+                                                           calloc(num_available_moves, cython.sizeof(cython.double)))
+
+        sum: cython.double = 0.0
+        i: cython.Py_ssize_t
+        for i in range(num_available_moves):
+            sum += pow(cython.cast(cython.double, self.root.n[self.root.move_start + i]), 1.0/selection_temp)
+        probs_list = []
+        for i in range(num_available_moves):
+            probs[i] = pow(cython.cast(cython.double, self.root.n[self.root.move_start + i]), 1.0/selection_temp) / sum
+            probs_list.append([probs[i], self.root.n[self.root.move_start + i], self.root.w[self.root.move_start + i],
+                               self.root.q[self.root.move_start + i]])
+
+        # Sampling from pi(a|s)
+        random: cython.double = cython.cast(cython.double, rand()) / cython.cast(cython.double, RAND_MAX);
+        sum = 0.0
+        selected_move_idx: cython.int = self.root.move_start
+        for i in range(num_available_moves):
+            sum += probs[i]
+            if random < sum:
+                selected_move_idx = i + self.root.move_start
+                break
+
+        free(probs)
+
+        # Sending back the data in a format that the user understands
+        move_for_game_engine = self.get_root_move(selected_move_idx)
         return selected_move_idx, move_for_game_engine, probs_list
 
     def take_move(self, move_idx: cython.short, model: ludoc.LudoModel):
