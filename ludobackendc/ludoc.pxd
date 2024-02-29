@@ -49,6 +49,8 @@ cdef void free_all_possible_moves_return(AllPossibleMovesReturn all_moves) noexc
 
 cdef bint check_completed1(StateStruct state, short player, short* final_pos) noexcept nogil
 
+cdef void get_tensor_repr_nogil(StateStruct state_struct, short n_players, short[5] colour_player, float[:,:] representation) noexcept nogil
+
 cdef class State:
     cdef StateStruct state_struct
     cdef void set_structure(State s, StateStruct st)

@@ -836,6 +836,38 @@ def check_completed1(state: StateStruct, player: cython.short, final_pos: cython
             return False
     return True
 
+@cython.cfunc
+@cython.nogil
+@cython.exceptval(check=False)
+def get_tensor_repr_nogil(state_struct: StateStruct, n_players:cython.short, colour_player: cython.short[5], representation: cython.float[:,:]) -> cython.void:
+    # pos_col_mapping = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] \
+    #                   + list(range(1, 53)) \
+    #                   + list(range(53, 59)) * 4
+    pos_col_mapping: cython.p_short = cython.cast(cython.p_short, calloc(17+52+6*4, cython.sizeof(cython.short)))
+    i: cython.Py_ssize_t
+    j: cython.Py_ssize_t
+    for i in range(1, 53):
+        pos_col_mapping[16+i] = i
+    for j in range(4):
+        for i in range(6):
+            pos_col_mapping[17+52+j*6+i] = i+53
+
+    # Setting Pawns
+    player: cython.short
+    for player in range(n_players):
+        j: cython.short
+        for j in range(93):
+            p: cython.int = state_struct.pawn_pos[player * 93 + j]
+            while p != 0:
+                representation[pos_col_mapping[j]][p % 17 - 1] = 1.0
+                p //= 17
+        # Setting colours
+        representation[:, 16] = colour_player[1] + 1.0  # Red
+        representation[:, 17] = colour_player[2] + 1.0  # Green
+        representation[:, 18] = colour_player[3] + 1.0  # Yellow
+        representation[:, 19] = colour_player[4] + 1.0  # Blue
+        representation[:, 20] = state_struct.current_player + 1.0  # Current player
+    free(pos_col_mapping)
 
 @cython.cclass
 class GameConfig:
@@ -1098,27 +1130,11 @@ class State:
 
     def get_tensor_repr(self, config: GameConfig):
         """ The state representation: [R1, R2, R3, R4, G1, G2, G3, G4, Y1, Y2, Y3, Y4, B1, B2, B3, B4, RPlayer, GPlayer, YPlayer, BPlayer, currentPlayer]"""
+
+        # TODO: Add Rigid Blocks to State
+
         representation = np.zeros(shape=(59, 21), dtype=np.float32)
-        pos_col_mapping = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] \
-                          + list(range(1, 53)) \
-                          + list(range(53, 59)) * 4
-
-        # Setting Pawns
-        player: cython.short
-        for player in range(config.n_players):
-            j: cython.short
-            for j in range(93):
-                p: cython.int = self.state_struct.pawn_pos[player * 93 + j]
-                while p != 0:
-                    representation[pos_col_mapping[j]][p % 17 - 1] = 1
-                    p //= 17
-
-        # Setting colours
-        representation[:, 16] = config.colour_player[1] + 1  # Red
-        representation[:, 17] = config.colour_player[2] + 1  # Green
-        representation[:, 18] = config.colour_player[3] + 1  # Yellow
-        representation[:, 19] = config.colour_player[4] + 1  # Blue
-        representation[:, 20] = self.state_struct.current_player + 1  # Current player
+        get_tensor_repr_nogil(self.state_struct, config.n_players, config.colour_player, representation)
         return representation
 
     def set_roll(self, roll):

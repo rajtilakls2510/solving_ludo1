@@ -1,12 +1,13 @@
 # cython: cdivision = True
 
 import cython
-from cython.parallel import prange
+from cython.parallel import prange, parallel
 from cython.cimports import ludoc
 from cython.cimports.libc.stdlib import free, malloc, calloc, rand, RAND_MAX
 from cython.cimports.openmp import omp_lock_t, omp_init_lock, omp_set_lock, omp_unset_lock, omp_destroy_lock
 from cython.cimports.libc.math import exp, pow, sqrt
 from cython.cimports.cytime import sleep
+import numpy as np
 
 
 @cython.cfunc
@@ -560,23 +561,29 @@ class EvaluationQueue:
         self.config = config
 
     def get_elems_pending(self, n_elems: cython.int):
-        accumulated_data = []
-        accumulated_indices = []
         accum: cython.int = 0
         # Collect max(n_elems, number of left) Elements
+        collected_i: cython.p_short = cython.cast(cython.p_short, calloc(n_elems, cython.sizeof(cython.short)))
         i: cython.int = self.queue_struct.front
         while i != self.queue_struct.rear and accum < n_elems:
             if self.queue_struct.queue[i].pending:
-                state: ludoc.State = ludoc.State()
-                state.set_structure(ludoc.copy_state(self.queue_struct.queue[i].data))
-                accumulated_data.append(state.get_tensor_repr(self.config))
-                accumulated_indices.append(i)
+                collected_i[accum] = i
                 accum += 1
-                del state
             i = (i + 1) % self.queue_struct.length
-        if len(accumulated_indices) > 0:
+        if accum > 0:
+            accumulated_data: np.ndarray = np.zeros(shape=(accum, 59, 21), dtype=np.float32)
+            d: cython.float[:, :, :] = accumulated_data
+            with cython.nogil, parallel():
+                for i in prange(accum):
+                    ludoc.get_tensor_repr_nogil(self.queue_struct.queue[collected_i[i]].data, self.config.n_players, self.config.colour_player, d[i])
+            accumulated_indices: list = []
+            for i in range(accum):
+                accumulated_indices.append(collected_i[i])
+            free(collected_i)
             return accumulated_data, accumulated_indices
-        return [], []
+        else:
+            free(collected_i)
+            return [], []
 
     def set_elems_result(self, results, results_indices: list):
 
