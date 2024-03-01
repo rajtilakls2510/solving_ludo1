@@ -2,6 +2,7 @@
 import cython
 from random import randint
 from cython.cimports.libc.stdlib import free, calloc, malloc
+from cython.parallel import prange, parallel
 import numpy as np
 
 # from cython.cimports.ludocds import AllMovesTreeNode
@@ -861,13 +862,25 @@ def get_tensor_repr_nogil(state_struct: StateStruct, n_players:cython.short, col
             while p != 0:
                 representation[pos_col_mapping[j]][p % 17 - 1] = 1.0
                 p //= 17
-        # Setting colours
-        representation[:, 16] = colour_player[1] + 1.0  # Red
-        representation[:, 17] = colour_player[2] + 1.0  # Green
-        representation[:, 18] = colour_player[3] + 1.0  # Yellow
-        representation[:, 19] = colour_player[4] + 1.0  # Blue
-        representation[:, 20] = state_struct.current_player + 1.0  # Current player
+    # Setting colours
+    representation[:, 16] = colour_player[1] + 1.0  # Red
+    representation[:, 17] = colour_player[2] + 1.0  # Green
+    representation[:, 18] = colour_player[3] + 1.0  # Yellow
+    representation[:, 19] = colour_player[4] + 1.0  # Blue
+    representation[:, 20] = state_struct.current_player + 1.0  # Current player
+
+    # Setting Rigid Blocks
+
+    for i in range(state_struct.num_blocks):
+        if state_struct.all_blocks[i].rigid:
+            colour: cython.short = (state_struct.all_blocks[i].pawns % 17 - 1) // 4 + 1
+            player: cython.short = colour_player[colour]
+            for colour in range(1, 5):
+                if colour_player[colour] == player:
+                    representation[pos_col_mapping[state_struct.all_blocks[i].pos], 20 + colour] = 1.0
+
     free(pos_col_mapping)
+
 
 @cython.cclass
 class GameConfig:
@@ -1129,11 +1142,8 @@ class State:
         return new_state
 
     def get_tensor_repr(self, config: GameConfig):
-        """ The state representation: [R1, R2, R3, R4, G1, G2, G3, G4, Y1, Y2, Y3, Y4, B1, B2, B3, B4, RPlayer, GPlayer, YPlayer, BPlayer, currentPlayer]"""
-
-        # TODO: Add Rigid Blocks to State
-
-        representation = np.zeros(shape=(59, 21), dtype=np.float32)
+        """ The state representation: [R1, R2, R3, R4, G1, G2, G3, G4, Y1, Y2, Y3, Y4, B1, B2, B3, B4, RPlayer, GPlayer, YPlayer, BPlayer, currentPlayer, RPlayerRigidBlock, GPlayerRigidBlock, YPlayerRigidBlock, BPlayerRigidBlock]"""
+        representation = np.zeros(shape=(59, 25), dtype=np.float32)
         get_tensor_repr_nogil(self.state_struct, config.n_players, config.colour_player, representation)
         return representation
 
@@ -1143,6 +1153,14 @@ class State:
         for r in roll:
             dice_roll = dice_roll * 7 + r
         self.state_struct.dice_roll = dice_roll
+
+    def get_roll(self):
+        dice_roll = []
+        roll: cython.short = self.state_struct.dice_roll
+        while roll != 0:
+            dice_roll.append(roll % 7)
+            roll //= 7
+        return dice_roll
 
     def get_copy(self):
         new_state: State = State()
@@ -1246,6 +1264,59 @@ class LudoModel:
         free_move(move_struct)
         return ns
 
+    def get_next_states_tensor_reprs_and_moves(self, state: State):
+        mappings = {
+            "pawn": ["", "R1", "R2", "R3", "R4", "G1", "G2", "G3", "G4", "Y1", "Y2", "Y3", "Y4", "B1", "B2", "B3",
+                     "B4"],
+            "pos": ["", "RB1", "RB2", "RB3", "RB4", "GB1", "GB2", "GB3", "GB4", "YB1", "YB2", "YB3", "YB4", "BB1",
+                    "BB2", "BB3", "BB4"]
+                   + [f"P{i + 1}" for i in range(52)]
+                   + ["RH1", "RH2", "RH3", "RH4", "RH5", "RH6", "GH1", "GH2", "GH3", "GH4", "GH5", "GH6", "YH1", "YH2",
+                      "YH3", "YH4", "YH5", "YH6", "BH1", "BH2", "BH3", "BH4", "BH5", "BH6"]
+        }
+        # Use convert_validated_moves to generate available moves
+        moves_returned: RollMovesReturn = convert_validated_moves(state.state_struct, state.state_struct.dice_roll, self.stars, self.final_pos, self.colour_tracks, self.config.player_colours)
+
+        validated_moves = []
+        num_moves: cython.short = moves_returned.num_moves
+        i: cython.short
+        for i in range(num_moves):
+            move = []
+            move_struct: MoveStruct = moves_returned.moves[i]
+            j: cython.short
+            for j in range(move_struct.n_rolls):
+                if move_struct.pawns[j] > 16:
+                    p = []
+                    p1: cython.int = move_struct.pawns[j]
+                    while p1 != 0:
+                        p.append(mappings["pawn"][p1 % 17])
+                        p1 //= 17
+                else:
+                    p = mappings["pawn"][move_struct.pawns[j]]
+                move.append([p, mappings["pos"][move_struct.current_positions[j]],
+                             mappings["pos"][move_struct.destinations[j]]])
+            validated_moves.append(move)
+
+        if num_moves > 0:
+            representations: np.ndarray = np.zeros(shape=(moves_returned.num_moves, 59, 25), dtype=np.float32)
+            d: cython.float[:, :, :] = representations
+            i: cython.Py_ssize_t
+            for i in range(moves_returned.num_moves):   # Using prange is slower because of thread creation overhead
+                # Use generate_next_state1 to generate next state
+                next_state: StateStruct = generate_next_state1(state.state_struct, moves_returned.moves[i], self.colour_tracks, self.stars, self.final_pos, self.config.player_colours)
+
+                # Use get_tensor_repr_nogil to generate tensor reprs for next states
+                get_tensor_repr_nogil(next_state, self.config.n_players, self.config.colour_player, d[i])
+
+            return representations, validated_moves
+        else:
+            move_struct: MoveStruct = MoveStruct(n_rolls=0, pawns=cython.NULL, current_positions=cython.NULL, destinations=cython.NULL) # No Move
+            next_state: StateStruct = generate_next_state1(state.state_struct, move_struct, self.colour_tracks, self.stars, self.final_pos, self.config.player_colours)
+            representation: np.ndarray = np.zeros(shape=(1, 59, 25), dtype=np.float32)
+            d: cython.float[:, :, :] = representation
+            get_tensor_repr_nogil(next_state, self.config.n_players, self.config.colour_player, d[0])
+            return representation, []
+
     def all_possible_moves(self, state: State):
         all_moves_returned: AllPossibleMovesReturn = all_possible_moves1(state.state_struct, self.stars, self.final_pos,
                                                                          self.colour_tracks, self.config.player_colours)
@@ -1338,7 +1409,7 @@ class Ludo:
         self.state = State(self.model.config.n_players)
         self.state.set(state_dict)
 
-        self.all_current_moves = self.model.all_possible_moves(self.state)
+        #self.all_current_moves = self.model.all_possible_moves(self.state)
 
     def turn(self, move, move_id):
         # Take the move and create next state
@@ -1359,7 +1430,7 @@ class Ludo:
 
             if not state_dict["game_over"]:
                 # cache all possible next moves
-                self.all_current_moves = self.model.all_possible_moves(self.state)
+                # self.all_current_moves = self.model.all_possible_moves(self.state)
                 # Generate new dice roll
                 roll: list = self.generate_dice_roll()
                 self.state.set_roll(roll)

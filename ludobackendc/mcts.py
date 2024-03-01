@@ -516,6 +516,9 @@ class MCTree:
         free_mcts_node(self.root)
 
 
+# ============================ Evaluation Queue ===================================
+
+
 QN = cython.struct(data=ludoc.StateStruct, pending=cython.bint, result=cython.double)
 EQ = cython.struct(queue=cython.pointer(QN), front=cython.int, rear=cython.int,
                    length=cython.int)  # Length is not the no. of elems
@@ -571,7 +574,7 @@ class EvaluationQueue:
                 accum += 1
             i = (i + 1) % self.queue_struct.length
         if accum > 0:
-            accumulated_data: np.ndarray = np.zeros(shape=(accum, 59, 21), dtype=np.float32)
+            accumulated_data: np.ndarray = np.zeros(shape=(accum, 59, 25), dtype=np.float32)
             d: cython.float[:, :, :] = accumulated_data
             with cython.nogil, parallel():
                 for i in prange(accum):
