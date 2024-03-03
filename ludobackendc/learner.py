@@ -14,6 +14,57 @@ tf.config.experimental.set_memory_growth(tf.config.list_physical_devices("GPU")[
 def check_enough_games(min_games, store_path):
     return len(os.listdir(store_path)) >= min_games
 
+def get_pawn_permutation():
+    # This function returns the permutation matrix for one colour of pawns
+    perm = np.zeros(shape=(4, 4))
+    permuted_indices = np.random.permutation(4)
+    for i in range(4):
+        perm[i, permuted_indices[i]] = 1
+    return perm
+
+class ArtificialDataset(tf.data.Dataset):
+
+
+    def _generator(store_path):
+        parser = cysimdjson.JSONParser()
+        while True:
+            file = random.choices(os.listdir(store_path), k=1)[0]
+            try:
+                game_data = parser.load(str(store_path / file))
+                winner_player = game_data["player_won"]
+                num_states = len(game_data["states"])
+                # Choose one state
+                chosen_state = np.random.randint(low=0, high=num_states)
+                # Parse a state
+                state = np.zeros(shape=(59, 25))
+                for i in range(59):
+                    for j in range(25):
+                        state[i, j] = game_data["states"][chosen_state][i][j]
+                # Apply turn augmentation
+                player = random.choice(np.unique(state[0, 16:20]))
+                state[:, 20] = player
+
+                # Apply pawn augmentation
+                permutation_array = np.eye(N=25)
+                permutation_array[:4, :4] = get_pawn_permutation()  # Red
+                permutation_array[4:8, 4:8] = get_pawn_permutation()  # Green
+                permutation_array[8:12, 8:12] = get_pawn_permutation()  # Yellow
+                permutation_array[12:16, 12:16] = get_pawn_permutation()  # Blue
+                state = state @ permutation_array
+
+                # Select the appropriate reward based on who won
+                reward = [1] if state[0, -1] == winner_player else [-1]
+                yield tf.convert_to_tensor(state, dtype=tf.float32), tf.convert_to_tensor(reward, dtype=tf.float32)
+            except:
+                pass
+
+    def __new__(cls, store_path, batch_size, ):
+        return tf.data.Dataset.from_generator(
+            cls._generator,
+            output_signature=(
+        tf.TensorSpec(shape=(59, 25), dtype=tf.float32), tf.TensorSpec(shape=(1,), dtype=tf.float32)),
+            args=(store_path,)
+        ).batch(batch_size).prefetch(tf.data.AUTOTUNE)
 
 class SaveCallback(tf.keras.callbacks.Callback):
 
@@ -59,43 +110,7 @@ class Learner:
                 boundaries=self.lr_boundaries,
                 values=self.lr_lrs)
 
-    def get_pawn_permutation(self):
-        # This function returns the permutation matrix for one colour of pawns
-        perm = np.zeros(shape=(4, 4))
-        permuted_indices = np.random.permutation(4)
-        for i in range(4):
-            perm[i, permuted_indices[i]] = 1
-        return perm
 
-    def get_elements(self):
-        parser = cysimdjson.JSONParser()
-        while True:
-            file = random.choices(os.listdir(self.store_path), k=1)[0]
-            game_data = parser.load(str(self.store_path / file))
-            winner_player = game_data["player_won"]
-            num_states = len(game_data["states"])
-            # Choose one state
-            chosen_state = np.random.randint(low=0, high=num_states)
-            # Parse a state
-            state = np.zeros(shape=(59, 25))
-            for i in range(59):
-                for j in range(25):
-                    state[i, j] = game_data["states"][chosen_state][i][j]
-            # Apply turn augmentation
-            player = random.choice(np.unique(state[0, 16:20]))
-            state[:, 20] = player
-
-            # Apply pawn augmentation
-            permutation_array = np.eye(N=25)
-            permutation_array[:4, :4] = self.get_pawn_permutation()  # Red
-            permutation_array[4:8, 4:8] = self.get_pawn_permutation()  # Green
-            permutation_array[8:12, 8:12] = self.get_pawn_permutation()  # Yellow
-            permutation_array[12:16, 12:16] = self.get_pawn_permutation()  # Blue
-            state = state @ permutation_array
-
-            # Select the appropriate reward based on who won
-            reward = [1] if state[0, -1] == winner_player else [-1]
-            yield tf.convert_to_tensor(state, dtype=tf.float32), tf.convert_to_tensor(reward, dtype=tf.float32)
 
     def train(self):
         self.load_hyper_parameters()
@@ -108,11 +123,12 @@ class Learner:
         print(f"Loaded Network: {self.path_newest_checkpoint}")
         save_callback = SaveCallback(self.config_file)
 
-        dataset = tf.data.Dataset \
-            .from_generator(self.get_elements, output_signature=(
-        tf.TensorSpec(shape=(59, 25), dtype=tf.float32), tf.TensorSpec(shape=(1,), dtype=tf.float32))) \
-            .batch(self.batch_size) \
-            .prefetch(tf.data.AUTOTUNE)
+        dataset = ArtificialDataset(self.store_path, self.batch_size)
+        #dataset = tf.data.Dataset \
+        #    .from_generator(self.get_elements, output_signature=(
+        #tf.TensorSpec(shape=(59, 25), dtype=tf.float32), tf.TensorSpec(shape=(1,), dtype=tf.float32))) \
+        #    .batch(self.batch_size) \
+        #    .prefetch(tf.data.AUTOTUNE)
         #
         # @tf.function
         # def get_dataset():

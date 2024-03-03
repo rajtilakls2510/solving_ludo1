@@ -34,14 +34,13 @@ class PlayerAgent:
         # start = time.perf_counter()
         representations, available_moves = self.game_engine.model.get_next_states_tensor_reprs_and_moves(
             self.game_engine.state)
+        temp = 0 if state_dict["last_move_id"] > 100 else 1
+        if state_dict["last_move_id"] == 101:
+                print("\\", end="")
         if available_moves == []:
             chosen_move = [[]]
         else:
-
-            next_values = eval(self.network, tf.convert_to_tensor(representations, dtype=tf.float32))
-            temp = 0 if state_dict["last_move_id"] > 100 else 1
-            if state_dict["last_move_id"] == 101:
-                print("\\", end="")
+            next_values = eval(self.network, tf.convert_to_tensor(representations, dtype=tf.float32))    
             chosen_move = random.choices(available_moves, k=1, weights=move_probabilities(next_values, temp))[0]
         # end = time.perf_counter()
         # print(f"Overall time: {end - start}")

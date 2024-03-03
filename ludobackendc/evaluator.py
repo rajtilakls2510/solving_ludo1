@@ -7,7 +7,8 @@ import time
 from pathlib import Path
 import ludoc
 import tensorflow as tf
-tf.config.experimental.set_memory_growth(tf.config.list_physical_devices("GPU")[0], enable=True)
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+# tf.config.experimental.set_memory_growth(tf.config.list_physical_devices("GPU")[0], enable=True)
 
 networks = []
 
@@ -142,34 +143,49 @@ class Actor:
             f.write(json.dumps(log))
 
         print(f"Game Generation Time: {end_time - start_time}")
+        return log["player_won"]
 
     def start(self, config_file):
         while True:
             with open(config_file, "r", encoding="utf-8") as f:
                 config = json.loads(f.read())
-
+               
+            all_games = [datetime.datetime.strptime(dir, "%Y_%b_%d_%H_%M_%S_%f") for dir in os.listdir(Path(config["root_path"]) / config["experience_store_subpath"])]
+            all_games.sort()
+            if len(all_games) - config["evaluator"]["max_experience_store"] > 0:
+                remove_games = all_games[:len(all_games) - config["evaluator"]["max_experience_store"]]
+                for rm in remove_games:
+                    try:
+                        os.remove(Path(config["root_path"]) / config["experience_store_subpath"] / f"{rm.strftime('%Y_%b_%d_%H_%M_%S_%f')}.json")
+                    except:
+                        pass
+               
             if not config["evaluator"]["evaluated"]:
                 self.load_checkpoints(2, config)
                 game = 0
+                wins = 0
                 while game < 200:
                     print(f"Initializing game: {game}")
                     game_engine = self.initialize_game()
                     print(f"Playing game: {game}")
-                    self.play_game(game_engine, config)
+                    player_won = self.play_game(game_engine, config)
+                    if player_won == 0:
+                        wins += 1
                     game += 1
-
-
+                print([network["checkpoint"] for network in networks], wins)
                 with open(config_file, "r", encoding="utf-8") as f:
                     config = json.loads(f.read())
                 config["actor"]["checkpoints"].insert(0, self.current_newest_checkpoint)
+                config["actor"]["checkpoints"] = config["actor"]["checkpoints"][:config["evaluator"]["max_checkpoints"]]
                 best_indices = config["actor"]["best_checkpoint_indices"]
-                best_indices = [bi + 1 for i, bi in enumerate(best_indices) if i < 1]
-                best_indices.insert(0, 0)
-
+                if wins >= 110:
+                    best_indices.insert(0, -1)
+                config["actor"]["best_checkpoint_indices"] = [bi + 1 for i, bi in enumerate(best_indices) if i < 1]
                 if config["evaluator"]["newest_checkpoint"] == self.current_newest_checkpoint:
                     config["evaluator"]["evaluated"] = True
                 with open(config_file, "w", encoding="utf-8") as f:
                     f.write(json.dumps(config))
+                
             else:
                 print("Evaluator waiting for next checkpoint...")
                 time.sleep(600)
