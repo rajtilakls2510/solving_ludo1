@@ -5,12 +5,16 @@
   "log_store_subpath": "logs",
   "actor": {
     "checkpoints": [
+      "2024_Mar_03_11_31_12_036846",
       "2024_Mar_03_10_46_30_811479"
     ],
-    "best_checkpoint_index": 0,
+    "best_checkpoint_indices": [
+      0
+    ],
     "max_experience_store_size": 100000,
     "initial_game": 0,
-    "final_game": 1000
+    "final_game": 1000,
+    "load_networks_every_games": 10
   },
   "evaluator": {
     "newest_checkpoint": "2024_Mar_03_11_31_12_036846",
@@ -18,7 +22,7 @@
   },
   "learner": {
     "min_stored_games": 500,
-    "batch_size": 128,
+    "batch_size": 64,
     "initial_batch": 200,
     "final_batch": 100000,
     "save_every_batches": 100,

@@ -91,7 +91,7 @@ if __name__ == "__main__":
     model.save(
         str(root_path / config["checkpoints_subpath"] / current_checkpoint))
     config["actor"]["checkpoints"] = [current_checkpoint]
-    config["actor"]["best_checkpoint_index"] = 0
+    config["actor"]["best_checkpoint_indices"] = [0]
     config["evaluator"]["newest_checkpoint"] = current_checkpoint
     config["evaluator"]["evaluated"] = True
 

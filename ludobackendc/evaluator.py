@@ -1,16 +1,17 @@
+import argparse
 import datetime
 import json
 import os
-from pathlib import Path
-import numpy as np
-import ludoc
 import random
 import time
-import argparse
+from pathlib import Path
+import ludoc
 import tensorflow as tf
-tf.config.experimental.set_memory_growth(tf.config.list_physical_devices("GPU")[0], True)
+tf.config.experimental.set_memory_growth(tf.config.list_physical_devices("GPU")[0], enable=True)
 
 networks = []
+
+
 @tf.function(reduce_retracing=True)
 def eval(network, inputs):
     return network(inputs, training=False)[:, 0]
@@ -50,8 +51,6 @@ class PlayerAgent:
 
 
 class Actor:
-
-
     def initialize_game(self):
         # Removing bias by randomizing the color of the players
 
@@ -66,45 +65,20 @@ class Actor:
     def load_checkpoints(self, n_players, config):
         global networks
         path = Path(config["root_path"]) / config["checkpoints_subpath"]
-        if networks == []:
-            best_checkpoint = config["actor"]["checkpoints"][config["actor"]["best_checkpoint_indices"][0]]
-            if self.current_best_checkpoint != best_checkpoint:
-                networks = [{"checkpoint": best_checkpoint, "network": tf.keras.models.load_model(
-                    str(path / best_checkpoint))}]
-                print(f'Best Checkpoint Loaded: {best_checkpoint}')
-                self.current_best_checkpoint = best_checkpoint
-            for p in range(n_players-1):
-                chosen_checkpoint = np.random.randint(low=0, high=len(config["actor"]["checkpoints"]), size=1)[0]
-                networks.append({"checkpoint": config["actor"]["checkpoints"][chosen_checkpoint], "network": tf.keras.models.load_model(str(path / config["actor"]["checkpoints"][chosen_checkpoint]))})
-                print(
-                    f'Checkpoint Loaded: {config["actor"]["checkpoints"][chosen_checkpoint]}')
-        else:
-            best_checkpoint = config["actor"]["checkpoints"][config["actor"]["best_checkpoint_indices"][0]]
-            if self.current_best_checkpoint != best_checkpoint:
-                networks[0]["checkpoint"] = best_checkpoint
-                networks[0]["network"].set_weights(tf.keras.models.load_model(
-                    str(path / best_checkpoint)).get_weights())
-                print(f'Best Checkpoint Loaded: {best_checkpoint}')
-                self.current_best_checkpoint = best_checkpoint
-
-            for p in range(1, n_players):
-                chosen_checkpoint = np.random.randint(low=0, high=len(config["actor"]["checkpoints"]), size=1)[0]
-                networks[p]["checkpoint"] = config["actor"]["checkpoints"][chosen_checkpoint]
-                networks[p]["network"].set_weights(
-                    tf.keras.models.load_model(str(path / config["actor"]["checkpoints"][chosen_checkpoint])).get_weights())
-                print(
-                    f'Checkpoint Loaded: {config["actor"]["checkpoints"][chosen_checkpoint]}')
-
+        newest_checkpoint = config["evaluator"]["newest_checkpoint"]
+        networks = [{"checkpoint": newest_checkpoint, "network": tf.keras.models.load_model(
+            str(path / newest_checkpoint))}]
+        self.current_newest_checkpoint = newest_checkpoint
+        print(f'Newest Checkpoint Loaded: {newest_checkpoint}')
+        best_checkpoint = config["actor"]["checkpoints"][config["actor"]["best_checkpoint_indices"][0]]
+        for p in range(n_players-1):
+            networks.append({"checkpoint": best_checkpoint, "network": tf.keras.models.load_model(str(path / best_checkpoint))})
+            print(
+                f'Checkpoint Loaded: {best_checkpoint}')
         return networks
 
-    def play_game(self, game_engine, config_file, game):
-        global networks
+    def play_game(self, game_engine, config):
         start_time = time.perf_counter()
-        with open(config_file, "r", encoding="utf-8") as f:
-            config = json.loads(f.read())
-        if game % config["actor"]["load_networks_every_games"] == 0:
-            # Loading and choosing checkpoints to play with
-            networks = self.load_checkpoints(game_engine.model.config.n_players, config)
 
         # Creating Players
         player_agents = [PlayerAgent(player, game_engine, networks[player]["network"]) for player in
@@ -118,10 +92,6 @@ class Actor:
             "game": [],  # List of dictionaries for each game
             "player_won": None,  # Initialize as None until a player wins
             "networks": [networks[player]["checkpoint"] for player in range(game_engine.model.config.n_players)] # List of networks that played that game
-        }
-        data_store = {
-            "player_won": None,
-            "states": []
         }
 
         # Playing the game
@@ -137,7 +107,6 @@ class Actor:
             # print("For Player:", self.current_agent.player)
 
             game_data = {"game_state": game_engine.state.get_visualizer_repr(game_engine.model.config)}
-            data_store["states"].append(game_engine.state.get_tensor_repr(game_engine.model.config).tolist())
 
             # Selecting move
             # print(f"Selecting move for player: {self.current_agent.player}")
@@ -160,38 +129,50 @@ class Actor:
         game_data = {"game_state": game_engine.state.get_visualizer_repr(game_engine.model.config), "move_id": len(log["game"]),
                      "move": []}
         log["game"].append(game_data)
-        data_store["states"].append(game_engine.state.get_tensor_repr(game_engine.model.config).tolist())
         end_time = time.perf_counter()
         print("")
 
-        data_store["player_won"] = game_engine.winner + 1
         log["config"] = game_engine.model.config.get()
         log["player_won"] = game_engine.winner
 
         game_name = datetime.datetime.now().strftime('%Y_%b_%d_%H_%M_%S_%f')
-        store_path = Path(config["root_path"]) / config["experience_store_subpath"]
-        log_path = Path(config["root_path"]) / config["log_store_subpath"]
-        os.makedirs(store_path, exist_ok=True)
+        log_path = Path(config["root_path"]) / (config["log_store_subpath"]+"_evaluated")
         os.makedirs(log_path, exist_ok=True)
-        with open(store_path / game_name, "w", encoding="utf-8") as f:
-            f.write(json.dumps(data_store))
         with open(log_path / game_name, "w", encoding="utf-8") as f:
             f.write(json.dumps(log))
 
         print(f"Game Generation Time: {end_time - start_time}")
 
     def start(self, config_file):
-        self.current_best_checkpoint = ""
-        with open(config_file, "r", encoding="utf-8") as f:
-            config = json.loads(f.read())
+        while True:
+            with open(config_file, "r", encoding="utf-8") as f:
+                config = json.loads(f.read())
 
-        game = config["actor"]["initial_game"]
-        while game < config["actor"]["final_game"]:
-            print(f"Initializing game: {game}")
-            game_engine = self.initialize_game()
-            print(f"Playing game: {game}")
-            self.play_game(game_engine, config_file, game)
-            game += 1
+            if not config["evaluator"]["evaluated"]:
+                self.load_checkpoints(2, config)
+                game = 0
+                while game < 200:
+                    print(f"Initializing game: {game}")
+                    game_engine = self.initialize_game()
+                    print(f"Playing game: {game}")
+                    self.play_game(game_engine, config)
+                    game += 1
+
+
+                with open(config_file, "r", encoding="utf-8") as f:
+                    config = json.loads(f.read())
+                config["actor"]["checkpoints"].insert(0, self.current_newest_checkpoint)
+                best_indices = config["actor"]["best_checkpoint_indices"]
+                best_indices = [bi + 1 for i, bi in enumerate(best_indices) if i < 1]
+                best_indices.insert(0, 0)
+
+                if config["evaluator"]["newest_checkpoint"] == self.current_newest_checkpoint:
+                    config["evaluator"]["evaluated"] = True
+                with open(config_file, "w", encoding="utf-8") as f:
+                    f.write(json.dumps(config))
+            else:
+                print("Evaluator waiting for next checkpoint...")
+                time.sleep(600)
 
 
 if __name__ == "__main__":
