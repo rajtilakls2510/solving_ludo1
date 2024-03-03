@@ -41,7 +41,7 @@ def value_head(x):
     x = Flatten()(x)
     x = Dense(256, activation='relu', kernel_regularizer=tf.keras.regularizers.L2(1e-4),
               bias_regularizer=tf.keras.regularizers.L2(1e-4))(x)
-    x = Dense(1, activation='linear', kernel_regularizer=tf.keras.regularizers.L2(1e-4),
+    x = Dense(1, activation='tanh', kernel_regularizer=tf.keras.regularizers.L2(1e-4),
               bias_regularizer=tf.keras.regularizers.L2(1e-4))(x)
 
     return x
@@ -82,9 +82,10 @@ if __name__ == "__main__":
     optimizer = Adam(learning_rate=dummy_schedule)
     input_shape = (59, 25)
     model = nn_model(input_shape)
-    model.compile(optimizer=optimizer)
+    model.compile(optimizer=optimizer, loss=tf.keras.losses.MeanSquaredError())
     os.makedirs(root_path / config["checkpoints_subpath"], exist_ok=True)
     os.makedirs(root_path / config["experience_store_subpath"], exist_ok=True)
+    os.makedirs(root_path / config["log_store_subpath"], exist_ok=True)
 
     current_checkpoint = datetime.datetime.now().strftime('%Y_%b_%d_%H_%M_%S_%f')
     model.save(
